@@ -1,0 +1,25 @@
+{
+  "name": "ems-api-fresh",
+  "version": "1.0.0",
+  "description": "not ems",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.5.0",
+    "mongoose": "^8.18.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.6",
+    "sib-api-v3-sdk": "^8.5.0"
+  }
+}
