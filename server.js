@@ -7,7 +7,7 @@ const bcrypt = require("bcrypt");
 const axios = require("axios");
 
 console.log("BREVO_API_KEY:", process.env.BREVO_API_KEY);
-console.log("SENDER_EMAIL:", process.env.SENDER_EMAIL);
+console.log("BREVO_USER:", process.env.BREVO_USER);
 console.log("MONGO_URI:", process.env.MONGO_URI);
 
 const app = express();
@@ -34,7 +34,8 @@ const User = mongoose.model("User", userSchema);
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, fullname, phone, cnic } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    if (!email || !password)
+      return res.status(400).json({ error: "Email and password required" });
 
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ error: "User already exists" });
@@ -60,7 +61,8 @@ app.post("/api/auth/register", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    if (!email || !password)
+      return res.status(400).json({ error: "Email and password required" });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ error: "Invalid email or password" });
@@ -92,7 +94,7 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
     const response = await axios.post(
       "https://api.brevo.com/v3/smtp/email",
       {
-        sender: { name: "EMS System", email: process.env.SENDER_EMAIL },
+        sender: { name: "EMS System", email: process.env.BREVO_USER },
         to: [{ email }],
         subject: "🔒 Your OTP for EMS Password Reset",
         htmlContent: `<p>Your OTP is <b>${otp}</b>. Valid for 5 minutes.</p>`,
@@ -103,6 +105,7 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
           "content-type": "application/json",
           "api-key": process.env.BREVO_API_KEY,
         },
+        timeout: 10000, // 10 sec
       }
     );
 
