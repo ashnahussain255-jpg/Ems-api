@@ -12,7 +12,7 @@ app.use(cors());
 
 // ===================== LOG ENV VARIABLES =====================
 console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
-console.log("✅ SENDER_EMAIL loaded:", !!process.env.SENDER_EMAIL);
+console.log("✅ BREVO_USER loaded:", !!process.env.BREVO_USER);
 console.log("✅ MONGO_URI loaded:", !!process.env.MONGO_URI);
 
 // ===================== Schemas =====================
@@ -98,7 +98,7 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
       const response = await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         {
-          sender: { name: "EMS System", email: process.env.SENDER_EMAIL },
+          sender: { name: "EMS System", email: process.env.BREVO_USER },
           to: [{ email }],
           subject: "🔒 Your OTP for EMS Password Reset",
           htmlContent: `<p>Your OTP is <b>${otp}</b>. Valid for 5 minutes.</p>`,
