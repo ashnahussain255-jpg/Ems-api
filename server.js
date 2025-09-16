@@ -350,7 +350,7 @@ async function aggregateDaysToMonths() {
 setInterval(aggregateSecondsToMinutes, 60 * 1000);
 setInterval(aggregateMinutesToHours, 60 * 60 * 1000);
 setInterval(aggregateHoursToDays, 24 * 60 * 60 * 1000);
-setInterval(aggregateDaysToMonths, 30 * 24 * 60 * 60 * 1000);
+setInterval(aggregateDaysToMonths, 24 * 60 * 60  * 1000);
 
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
