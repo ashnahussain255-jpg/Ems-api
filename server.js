@@ -6,13 +6,14 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const axios = require("axios");
 
-console.log("BREVO_API_KEY:", process.env.BREVO_API_KEY);
-console.log("BREVO_USER:", process.env.BREVO_USER);
-console.log("MONGO_URI:", process.env.MONGO_URI);
-
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
+
+// ===================== LOG ENV VARIABLES =====================
+console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
+console.log("✅ SENDER_EMAIL loaded:", !!process.env.SENDER_EMAIL);
+console.log("✅ MONGO_URI loaded:", !!process.env.MONGO_URI);
 
 // ===================== Schemas =====================
 const userSchema = new mongoose.Schema({
@@ -38,7 +39,8 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({ error: "Email and password required" });
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ error: "User already exists" });
+    if (existingUser)
+      return res.status(400).json({ error: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({
@@ -47,7 +49,6 @@ app.post("/api/auth/register", async (req, res) => {
       fullname: fullname || "",
       phone: phone || "",
       cnic: cnic || "",
-      profileImage: "",
     });
     await user.save();
 
@@ -65,10 +66,12 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password required" });
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ error: "Invalid email or password" });
+    if (!user)
+      return res.status(400).json({ error: "Invalid email or password" });
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ error: "Invalid email or password" });
+    if (!match)
+      return res.status(400).json({ error: "Invalid email or password" });
 
     res.json({ success: true, message: "Login successful" });
   } catch (err) {
@@ -90,29 +93,33 @@ app.post("/api/auth/request-password-reset", async (req, res) => {
     user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
     await user.save();
 
-    // Send OTP via Brevo API
-    const response = await axios.post(
-      "https://api.brevo.com/v3/smtp/email",
-      {
-        sender: { name: "EMS System", email: process.env.BREVO_USER },
-        to: [{ email }],
-        subject: "🔒 Your OTP for EMS Password Reset",
-        htmlContent: `<p>Your OTP is <b>${otp}</b>. Valid for 5 minutes.</p>`,
-      },
-      {
-        headers: {
-          accept: "application/json",
-          "content-type": "application/json",
-          "api-key": process.env.BREVO_API_KEY,
+    // Send OTP via Brevo HTTP API
+    try {
+      const response = await axios.post(
+        "https://api.brevo.com/v3/smtp/email",
+        {
+          sender: { name: "EMS System", email: process.env.SENDER_EMAIL },
+          to: [{ email }],
+          subject: "🔒 Your OTP for EMS Password Reset",
+          htmlContent: `<p>Your OTP is <b>${otp}</b>. Valid for 5 minutes.</p>`,
         },
-        timeout: 10000, // 10 sec
-      }
-    );
+        {
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            "api-key": process.env.BREVO_API_KEY,
+          },
+          timeout: 10000, // 10 sec
+        }
+      );
 
-    console.log("✅ OTP email sent:", response.data);
-    res.json({ success: true, message: "OTP sent to your email" });
+      console.log("✅ OTP email sent:", response.data);
+      res.json({ success: true, message: "OTP sent to your email" });
+    } catch (apiErr) {
+      console.error("❌ Brevo API error:", apiErr.response?.data || apiErr.message);
+      res.status(500).json({ error: "Failed to send OTP email" });
+    }
   } catch (err) {
-    console.error("❌ OTP send error:", err.response?.data || err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -136,10 +143,8 @@ app.post("/api/auth/verify-password-otp", async (req, res) => {
     user.otpExpiry = null;
     await user.save();
 
-    console.log(`✅ OTP verified for ${email}, resetToken: ${resetToken}`);
-    res.json({ success: true, message: "OTP verified successfully", resetToken });
+    res.json({ success: true, message: "OTP verified", resetToken });
   } catch (err) {
-    console.error("❌ Verify OTP Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -165,7 +170,6 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     res.json({ success: true, message: "Password updated successfully" });
   } catch (err) {
-    console.error("❌ Reset Password Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -217,8 +221,9 @@ mongoose
   })
   .then(() => {
     console.log("✅ MongoDB Connected");
-    app.listen(process.env.PORT || 3000, () => {
-      console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`🚀 Server running on port ${port}`);
     });
   })
   .catch((err) => {
