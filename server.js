@@ -28,9 +28,46 @@ const userSchema = new mongoose.Schema({
   resetToken: String,
   resetTokenExpiry: Date,
 });
-
 const User = mongoose.model("User", userSchema);
 
+// ===================== HISTORY SCHEMAS =====================
+const secondSchema = new mongoose.Schema({
+  voltage: Number,
+  current: Number,
+  timestamp: { type: Date, default: Date.now },
+});
+const minuteSchema = new mongoose.Schema({
+  voltage: Number,
+  current: Number,
+  timestamp: { type: Date, default: Date.now },
+});
+const hourSchema = new mongoose.Schema({
+  voltage: Number,
+  current: Number,
+  timestamp: { type: Date, default: Date.now },
+});
+const daySchema = new mongoose.Schema({
+  voltage: Number,
+  current: Number,
+  timestamp: { type: Date, default: Date.now },
+});
+const monthSchema = new mongoose.Schema({
+  month: Number,
+  year: Number,
+  avgVoltage: Number,
+  avgCurrent: Number,
+});
+
+const Second = mongoose.model("Second", secondSchema);
+const Minute = mongoose.model("Minute", minuteSchema);
+const Hour = mongoose.model("Hour", hourSchema);
+const Day = mongoose.model("Day", daySchema);
+const Month = mongoose.model("Month", monthSchema);
+
+// ===================== TEST ROUTE =====================
+app.get("/test", (req, res) => res.send("🚀 EMS API is live!"));
+
+// ===================== AUTH ROUTES =====================
 // ===================== REGISTER =====================
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -235,8 +272,87 @@ app.post("/api/user/update-profile-image", async (req, res) => {
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
+// ===================== ESP32 DATA ROUTES =====================
+app.post("/api/data", async (req, res) => {
+  try {
+    const { voltage, current } = req.body;
+    if (voltage == null || current == null)
+      return res.status(400).json({ error: "Missing voltage/current" });
 
-// ===================== START SERVER =====================
+    await new Second({ voltage, current }).save();
+    res.json({ message: "Data stored (second level)" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/monthlyAvg", async (req, res) => {
+  try {
+    const data = await Month.find().sort({ year: 1, month: 1 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== AGGREGATION FUNCTIONS =====================
+async function aggregateSecondsToMinutes() {
+  const cutoff = new Date(Date.now() - 60 * 1000);
+  const seconds = await Second.find({ timestamp: { $lte: cutoff } });
+  if (seconds.length > 0) {
+    const avgVoltage = seconds.reduce((a, b) => a + b.voltage, 0) / seconds.length;
+    const avgCurrent = seconds.reduce((a, b) => a + b.current, 0) / seconds.length;
+    await new Minute({ voltage: avgVoltage, current: avgCurrent }).save();
+    await Second.deleteMany({ timestamp: { $lte: cutoff } });
+  }
+}
+
+async function aggregateMinutesToHours() {
+  const cutoff = new Date(Date.now() - 60 * 60 * 1000);
+  const minutes = await Minute.find({ timestamp: { $lte: cutoff } });
+  if (minutes.length > 0) {
+    const avgVoltage = minutes.reduce((a, b) => a + b.voltage, 0) / minutes.length;
+    const avgCurrent = minutes.reduce((a, b) => a + b.current, 0) / minutes.length;
+    await new Hour({ voltage: avgVoltage, current: avgCurrent }).save();
+    await Minute.deleteMany({ timestamp: { $lte: cutoff } });
+  }
+}
+
+async function aggregateHoursToDays() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const hours = await Hour.find({ timestamp: { $lte: cutoff } });
+  if (hours.length > 0) {
+    const avgVoltage = hours.reduce((a, b) => a + b.voltage, 0) / hours.length;
+    const avgCurrent = hours.reduce((a, b) => a + b.current, 0) / hours.length;
+    await new Day({ voltage: avgVoltage, current: avgCurrent }).save();
+    await Hour.deleteMany({ timestamp: { $lte: cutoff } });
+  }
+}
+
+async function aggregateDaysToMonths() {
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), 0);
+  const days = await Day.find({ timestamp: { $lte: cutoff } });
+  if (days.length > 0) {
+    const avgVoltage = days.reduce((a, b) => a + b.voltage, 0) / days.length;
+    const avgCurrent = days.reduce((a, b) => a + b.current, 0) / days.length;
+
+    await Month.updateOne(
+      { month: cutoff.getMonth() + 1, year: cutoff.getFullYear() },
+      { avgVoltage, avgCurrent },
+      { upsert: true }
+    );
+    await Day.deleteMany({ timestamp: { $lte: cutoff } });
+  }
+}
+
+// ===================== SCHEDULE =====================
+setInterval(aggregateSecondsToMinutes, 60 * 1000);
+setInterval(aggregateMinutesToHours, 60 * 60 * 1000);
+setInterval(aggregateHoursToDays, 24 * 60 * 60 * 1000);
+setInterval(aggregateDaysToMonths, 30 * 24 * 60 * 60 * 1000);
+
+// ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -244,6 +360,4 @@ mongoose
     const port = process.env.PORT || 3000;
     app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
   })
-  .catch((err) => {
-    console.error("❌ MongoDB Connection Error:", err.message);
-  });
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err.message));
