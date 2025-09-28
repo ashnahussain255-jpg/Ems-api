@@ -12,7 +12,7 @@ const serviceAccount = require("./serviceAccountKey.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://<YOUR_PROJECT_ID>.firebaseio.com"
+  databaseURL: "https://varta-152e4-default-rtdb.firebaseio.com/"
 });
 const app = express();
 app.use(express.json());
