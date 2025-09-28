@@ -5,7 +5,15 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
 require("dotenv").config();
+const admin = require("firebase-admin");
 
+// Firebase service account file ka path
+const serviceAccount = require("./serviceAccountKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://<YOUR_PROJECT_ID>.firebaseio.com"
+});
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -69,6 +77,7 @@ app.get("/test", (req, res) => res.send("🚀 EMS API is live!"));
 
 // ===================== AUTH ROUTES =====================
 // ===================== REGISTER =====================
+// ===================== REGISTER =====================
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, fullname, phone, cnic } = req.body;
@@ -92,7 +101,18 @@ app.post("/api/auth/register", async (req, res) => {
     });
     await user.save();
 
-    res.json({ success: true, message: "User registered successfully" });
+    // 🔥 Firebase me user node auto create
+    await admin.database().ref("users/" + user._id.toString()).set({
+      profile: {
+        fullname: user.fullname,
+        email: user.email,
+        phone: user.phone,
+        cnic: user.cnic
+      },
+      devices: {}
+    });
+
+    res.json({ success: true, message: "User registered successfully", userId: user._id });
   } catch (err) {
     console.error("❌ Register Error:", err.message);
     res.status(500).json({ success: false, error: "Internal server error" });
@@ -121,7 +141,12 @@ app.post("/api/auth/login", async (req, res) => {
     res.json({
       success: true,
       message: "Login successful",
-      user: { fullname: user.fullname, email: user.email, phone: user.phone },
+      user: {
+        userId: user._id,   // 🔥 important
+        fullname: user.fullname,
+        email: user.email,
+        phone: user.phone
+      }
     });
   } catch (err) {
     console.error("❌ Login Error:", err.message);
