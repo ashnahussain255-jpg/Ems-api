@@ -45,26 +45,31 @@ const User = mongoose.model("User", userSchema);
 
 // ===================== HISTORY SCHEMAS =====================
 const secondSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
   voltage: Number,
   current: Number,
   timestamp: { type: Date, default: Date.now },
 });
 const minuteSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
   voltage: Number,
   current: Number,
   timestamp: { type: Date, default: Date.now },
 });
 const hourSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
   voltage: Number,
   current: Number,
   timestamp: { type: Date, default: Date.now },
 });
 const daySchema = new mongoose.Schema({
+  userId: { type: String, required: true },
   voltage: Number,
   current: Number,
   timestamp: { type: Date, default: Date.now },
 });
 const monthSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
   month: Number,
   year: Number,
   avgVoltage: Number,
@@ -305,11 +310,11 @@ app.post("/api/user/update-profile-image", async (req, res) => {
 // ===================== ESP32 DATA ROUTES =====================
 app.post("/api/data", async (req, res) => {
   try {
-    const { voltage, current } = req.body;
-    if (voltage == null || current == null)
-      return res.status(400).json({ error: "Missing voltage/current" });
+    const { userId, voltage, current } = req.body;
+    if (!userId || voltage == null || current == null)
+      return res.status(400).json({ error: "Missing userId or voltage/current" });
 
-    await new Second({ voltage, current }).save();
+    await new Second({ userId, voltage, current }).save();
     res.json({ message: "Data stored (second level)" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -324,63 +329,83 @@ app.get("/api/monthlyAvg", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ===================== USER HISTORY API =====================
+app.get("/api/history/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const data = await Second.find({ userId }).sort({ timestamp: -1 }); // latest first
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ===================== AGGREGATION FUNCTIONS =====================
-async function aggregateSecondsToMinutes() {
+async function aggregateSecondsToMinutes(userId) {
   const cutoff = new Date(Date.now() - 60 * 1000);
-  const seconds = await Second.find({ timestamp: { $lte: cutoff } });
+  const seconds = await Second.find({ timestamp: { $lte: cutoff }, userId });
   if (seconds.length > 0) {
     const avgVoltage = seconds.reduce((a, b) => a + b.voltage, 0) / seconds.length;
     const avgCurrent = seconds.reduce((a, b) => a + b.current, 0) / seconds.length;
-    await new Minute({ voltage: avgVoltage, current: avgCurrent }).save();
-    await Second.deleteMany({ timestamp: { $lte: cutoff } });
+    await new Minute({ userId, voltage: avgVoltage, current: avgCurrent }).save();
+    await Second.deleteMany({ timestamp: { $lte: cutoff }, userId });
   }
 }
 
-async function aggregateMinutesToHours() {
+async function aggregateMinutesToHours(userId) {
   const cutoff = new Date(Date.now() - 60 * 60 * 1000);
-  const minutes = await Minute.find({ timestamp: { $lte: cutoff } });
+  const minutes = await Minute.find({ timestamp: { $lte: cutoff }, userId });
   if (minutes.length > 0) {
     const avgVoltage = minutes.reduce((a, b) => a + b.voltage, 0) / minutes.length;
     const avgCurrent = minutes.reduce((a, b) => a + b.current, 0) / minutes.length;
-    await new Hour({ voltage: avgVoltage, current: avgCurrent }).save();
-    await Minute.deleteMany({ timestamp: { $lte: cutoff } });
+    await new Hour({ userId, voltage: avgVoltage, current: avgCurrent }).save();
+    await Minute.deleteMany({ timestamp: { $lte: cutoff }, userId });
   }
 }
 
-async function aggregateHoursToDays() {
+async function aggregateHoursToDays(userId) {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const hours = await Hour.find({ timestamp: { $lte: cutoff } });
+  const hours = await Hour.find({ timestamp: { $lte: cutoff }, userId });
   if (hours.length > 0) {
     const avgVoltage = hours.reduce((a, b) => a + b.voltage, 0) / hours.length;
     const avgCurrent = hours.reduce((a, b) => a + b.current, 0) / hours.length;
-    await new Day({ voltage: avgVoltage, current: avgCurrent }).save();
-    await Hour.deleteMany({ timestamp: { $lte: cutoff } });
+    await new Day({ userId, voltage: avgVoltage, current: avgCurrent }).save();
+    await Hour.deleteMany({ timestamp: { $lte: cutoff }, userId });
   }
 }
 
-async function aggregateDaysToMonths() {
+// ===================== MONTHLY AGGREGATION =====================
+async function aggregateDaysToMonths(userId) {
   const now = new Date();
   const cutoff = new Date(now.getFullYear(), now.getMonth(), 0);
-  const days = await Day.find({ timestamp: { $lte: cutoff } });
+  const days = await Day.find({ timestamp: { $lte: cutoff }, userId });
   if (days.length > 0) {
     const avgVoltage = days.reduce((a, b) => a + b.voltage, 0) / days.length;
     const avgCurrent = days.reduce((a, b) => a + b.current, 0) / days.length;
 
     await Month.updateOne(
-      { month: cutoff.getMonth() + 1, year: cutoff.getFullYear() },
+      { userId, month: cutoff.getMonth() + 1, year: cutoff.getFullYear() },
       { avgVoltage, avgCurrent },
       { upsert: true }
     );
-    await Day.deleteMany({ timestamp: { $lte: cutoff } });
+
+    await Day.deleteMany({ timestamp: { $lte: cutoff }, userId });
   }
 }
 
+
+
 // ===================== SCHEDULE =====================
-setInterval(aggregateSecondsToMinutes, 60 * 1000);
-setInterval(aggregateMinutesToHours, 60 * 60 * 1000);
-setInterval(aggregateHoursToDays, 24 * 60 * 60 * 1000);
-setInterval(aggregateDaysToMonths, 24 * 60 * 60  * 1000);
+setInterval(async () => {
+  const users = await User.find();
+  for (const user of users) {
+    await aggregateSecondsToMinutes(user._id.toString());
+    await aggregateMinutesToHours(user._id.toString());
+    await aggregateHoursToDays(user._id.toString());
+    await aggregateDaysToMonths(user._id.toString());
+  }
+}, 60 * 1000);
 
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
