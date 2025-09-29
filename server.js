@@ -4,12 +4,18 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
-require("dotenv").config();
+require("dotenv").config(); // local testing ke liye .env file se
 const admin = require("firebase-admin");
 
-// Firebase service account file ka path
-const serviceAccount = JSON.parse("./FIREBASE_SERVICE_ACCOUNT.json");
+// env var se JSON uthao
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
+  process.exit(1);
+}
 
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+// Firebase initialize
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://varta-152e4-default-rtdb.firebaseio.com/"
@@ -22,7 +28,7 @@ app.use(cors());
 console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
 console.log("✅ BREVO_USER loaded:", !!process.env.BREVO_USER);
 console.log("✅ MONGO_URI loaded:", !!process.env.MONGO_URI);
-console.log("✅ Firebase initialized successfully");
+
 // ===================== USER SCHEMA =====================
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
