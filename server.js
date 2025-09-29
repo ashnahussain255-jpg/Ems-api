@@ -22,7 +22,7 @@ app.use(cors());
 console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
 console.log("✅ BREVO_USER loaded:", !!process.env.BREVO_USER);
 console.log("✅ MONGO_URI loaded:", !!process.env.MONGO_URI);
-
+console.log("✅ Firebase initialized successfully");
 // ===================== USER SCHEMA =====================
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
