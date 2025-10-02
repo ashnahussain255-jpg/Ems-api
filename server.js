@@ -275,6 +275,11 @@ app.get("/api/user/profile", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ success: false, error: "User not found" });
 
+    let profileImageUrl = "";
+    if (user.profileImage && user.profileImage.length > 0) {
+      profileImageUrl = `data:image/jpeg;base64,${user.profileImage}`;
+    }
+
     res.json({
       success: true,
       data: {
@@ -282,7 +287,7 @@ app.get("/api/user/profile", async (req, res) => {
         email: user.email,
         phone: user.phone,
         cnic: user.cnic,
-        profileImage: user.profileImage || "",
+        profileImageUrl, // ✅ ye Glide me load ho jaayega
       },
     });
   } catch (err) {
