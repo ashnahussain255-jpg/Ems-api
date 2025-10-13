@@ -1,15 +1,18 @@
+
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
-require("dotenv").config(); // local testing ke liye .env file se
+require("dotenv").config();
 const admin = require("firebase-admin");
 
 // env var se JSON uthao
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
   process.exit(1);
+}
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
