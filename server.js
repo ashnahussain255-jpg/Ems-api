@@ -11,7 +11,20 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
   process.exit(1);
 }
-
+const userSchema = new mongoose.Schema({
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  fullname: { type: String, default: "" },
+  phone: { type: String, default: "" },
+  cnic: { type: String, default: "" },
+  profileImage: { type: String, default: "" },
+  otp: String,
+  otpExpiry: Date,
+  resetToken: String,
+  resetTokenExpiry: Date,
+  emailVerified: { type: Boolean, default: false },   // ✅ new
+  verificationToken: { type: String },                // ✅ new
+});
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 // Firebase initialize
@@ -140,6 +153,7 @@ app.get("/test", (req, res) => res.send("🚀 EMS API is live!"));
 // ===================== AUTH ROUTES =====================
 // ===================== REGISTER =====================
 // ===================== REGISTER =====================
+// ===================== REGISTER (with Email Verification) =====================
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, fullname, phone, cnic } = req.body;
@@ -154,33 +168,70 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = Math.random().toString(36).substring(2, 15); // random token
+
     const user = new User({
       email,
       password: hashedPassword,
-      fullname: fullname || "",
-      phone: phone || "",
-      cnic: cnic || "",
+      fullname,
+      phone,
+      cnic,
+      verificationToken
     });
     await user.save();
 
-    // 🔥 Firebase me user node auto create
+    // Firebase auto create
     await admin.database().ref("users/" + user._id.toString()).set({
-      profile: {
-        fullname: user.fullname,
-        email: user.email,
-        phone: user.phone,
-        cnic: user.cnic
-      },
+      profile: { fullname, email, phone, cnic },
       devices: {}
     });
 
-    res.json({ success: true, message: "User registered successfully", userId: user._id });
+    // 🔥 Send verification email
+    const verifyLink = `${process.env.BASE_URL}/api/auth/verify-email?token=${verificationToken}`;
+    await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: { name: "EMS System", email: process.env.BREVO_USER },
+        to: [{ email }],
+        subject: "📧 Verify your EMS Email",
+        htmlContent: `<p>Hello ${fullname || ""},</p>
+                      <p>Click below to verify your email:</p>
+                      <a href="${verifyLink}" target="_blank">${verifyLink}</a>
+                      <p>If you didn’t register, ignore this email.</p>`
+      },
+      {
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          "api-key": process.env.BREVO_API_KEY
+        }
+      }
+    );
+
+    res.json({ success: true, message: "User registered! Please verify your email." });
   } catch (err) {
     console.error("❌ Register Error:", err.message);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
+app.get("/api/auth/verify-email", async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).send("Invalid verification link");
 
+    const user = await User.findOne({ verificationToken: token });
+    if (!user) return res.status(400).send("Invalid or expired token");
+
+    user.emailVerified = true;
+    user.verificationToken = null;
+    await user.save();
+
+    res.send("<h2>Email verified successfully ✅</h2>");
+  } catch (err) {
+    console.error("❌ Email Verify Error:", err.message);
+    res.status(500).send("Internal server error");
+  }
+});
 // ===================== LOGIN =====================
 app.post("/api/auth/login", async (req, res) => {
   try {
