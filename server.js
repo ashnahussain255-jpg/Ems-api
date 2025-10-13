@@ -10,21 +10,7 @@ const admin = require("firebase-admin");
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
   process.exit(1);
-}
-const userSchema = new mongoose.Schema({
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  fullname: { type: String, default: "" },
-  phone: { type: String, default: "" },
-  cnic: { type: String, default: "" },
-  profileImage: { type: String, default: "" },
-  otp: String,
-  otpExpiry: Date,
-  resetToken: String,
-  resetTokenExpiry: Date,
-  emailVerified: { type: Boolean, default: false },   // ✅ new
-  verificationToken: { type: String },                // ✅ new
-});
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 // Firebase initialize
@@ -34,7 +20,11 @@ admin.initializeApp({
 });
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: "*", // ✅ allow all origins globally (mobile app, web, IoT)
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 // ===================== LOG ENV VARIABLES =====================
 console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
@@ -53,6 +43,8 @@ const userSchema = new mongoose.Schema({
   otpExpiry: Date,
   resetToken: String,
   resetTokenExpiry: Date,
+   emailVerified: { type: Boolean, default: false },   // ✅ new
+  verificationToken: { type: String },   
 });
 const User = mongoose.model("User", userSchema);
 // ===================== ADMIN SCHEMA =====================
