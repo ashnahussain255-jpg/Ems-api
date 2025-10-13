@@ -153,35 +153,44 @@ app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, fullname, phone, cnic } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ success: false, error: "Email and password required" });
-    }
 
+    // ✅ Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ success: false, error: "User already exists" });
+      if (existingUser.emailVerified) {
+        return res.status(400).json({ success: false, error: "User already exists" });
+      } else {
+        return res.status(400).json({ success: false, error: "User registered but not verified. Please check your email." });
+      }
     }
 
+    // ✅ Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationToken = Math.random().toString(36).substring(2, 15); // random token
 
+    // ✅ Generate token for verification
+    const verificationToken = Math.random().toString(36).substring(2, 15);
+
+    // ✅ Save new user
     const user = new User({
       email,
       password: hashedPassword,
       fullname,
       phone,
       cnic,
-      verificationToken
+      verificationToken,
+      emailVerified: false,
     });
     await user.save();
 
-    // Firebase auto create
+    // ✅ Create user entry in Firebase
     await admin.database().ref("users/" + user._id.toString()).set({
       profile: { fullname, email, phone, cnic },
       devices: {}
     });
 
-    // 🔥 Send verification email
+    // ✅ Send verification email (Brevo)
     const verifyLink = `${process.env.BASE_URL}/api/auth/verify-email?token=${verificationToken}`;
     await axios.post(
       "https://api.brevo.com/v3/smtp/email",
@@ -189,10 +198,16 @@ app.post("/api/auth/register", async (req, res) => {
         sender: { name: "EMS System", email: process.env.BREVO_USER },
         to: [{ email }],
         subject: "📧 Verify your EMS Email",
-        htmlContent: `<p>Hello ${fullname || ""},</p>
-                      <p>Click below to verify your email:</p>
-                      <a href="${verifyLink}" target="_blank">${verifyLink}</a>
-                      <p>If you didn’t register, ignore this email.</p>`
+        htmlContent: `
+          <h3>Welcome to EMS System</h3>
+          <p>Hello ${fullname || "User"},</p>
+          <p>Please verify your email to activate your account:</p>
+          <a href="${verifyLink}" target="_blank" 
+             style="padding:10px 15px; background:#4CAF50; color:white; text-decoration:none; border-radius:5px;">
+             Verify Email
+          </a>
+          <p>If you didn’t register, ignore this email.</p>
+        `
       },
       {
         headers: {
@@ -203,59 +218,73 @@ app.post("/api/auth/register", async (req, res) => {
       }
     );
 
-    res.json({ success: true, message: "User registered! Please verify your email." });
+    res.json({ success: true, message: "✅ User registered! Check your email for verification link." });
+
   } catch (err) {
     console.error("❌ Register Error:", err.message);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
+
+
+// ===================== EMAIL VERIFY =====================
 app.get("/api/auth/verify-email", async (req, res) => {
   try {
     const { token } = req.query;
-    if (!token) return res.status(400).send("Invalid verification link");
+    if (!token) return res.status(400).send("<h3>❌ Invalid verification link.</h3>");
 
     const user = await User.findOne({ verificationToken: token });
-    if (!user) return res.status(400).send("Invalid or expired token");
+    if (!user) return res.status(400).send("<h3>❌ Invalid or expired token.</h3>");
 
     user.emailVerified = true;
     user.verificationToken = null;
     await user.save();
 
-    res.send("<h2>Email verified successfully ✅</h2>");
+    res.send(`
+      <h2>✅ Email Verified Successfully!</h2>
+      <p>You can now log in to your EMS App.</p>
+    `);
   } catch (err) {
     console.error("❌ Email Verify Error:", err.message);
     res.status(500).send("Internal server error");
   }
 });
+
+
 // ===================== LOGIN =====================
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ success: false, error: "Email and password required" });
-    }
 
     const user = await User.findOne({ email });
-    if (!user) {
+    if (!user)
       return res.status(400).json({ success: false, error: "Invalid email or password" });
-    }
+
+    // ✅ If not verified
+    if (!user.emailVerified)
+      return res.status(403).json({
+        success: false,
+        error: "Please verify your email before logging in."
+      });
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) {
+    if (!match)
       return res.status(400).json({ success: false, error: "Invalid email or password" });
-    }
 
     res.json({
       success: true,
-      message: "Login successful",
+      message: "✅ Login successful",
       user: {
-        userId: user._id,   // 🔥 important
+        userId: user._id,
         fullname: user.fullname,
         email: user.email,
         phone: user.phone
       }
     });
+
   } catch (err) {
     console.error("❌ Login Error:", err.message);
     res.status(500).json({ success: false, error: "Internal server error" });
