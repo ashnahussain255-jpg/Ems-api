@@ -42,7 +42,59 @@ const userSchema = new mongoose.Schema({
   resetTokenExpiry: Date,
 });
 const User = mongoose.model("User", userSchema);
+// ===================== ADMIN SCHEMA =====================
+const adminSchema = new mongoose.Schema({
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  name: { type: String, default: "Admin" }
+});
 
+const Admin = mongoose.model("Admin", adminSchema);
+// ===================== ADMIN REGISTER =====================
+app.post("/api/admin/register", async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+
+    const existing = await Admin.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ success: false, error: "Admin already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const admin = new Admin({ email, password: hashedPassword, name });
+    await admin.save();
+
+    res.json({ success: true, message: "Admin registered successfully" });
+  } catch (err) {
+    console.error("❌ Admin Register Error:", err.message);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+// ===================== ADMIN LOGIN =====================
+app.post("/api/admin/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const admin = await Admin.findOne({ email });
+
+    if (!admin) {
+      return res.status(400).json({ success: false, error: "Invalid admin credentials" });
+    }
+
+    const match = await bcrypt.compare(password, admin.password);
+    if (!match) {
+      return res.status(400).json({ success: false, error: "Invalid admin credentials" });
+    }
+
+    res.json({
+      success: true,
+      message: "Admin login successful",
+      admin: { name: admin.name, email: admin.email }
+    });
+  } catch (err) {
+    console.error("❌ Admin Login Error:", err.message);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
 // ===================== HISTORY SCHEMAS =====================
 const secondSchema = new mongoose.Schema({
   userId: { type: String, required: true },
