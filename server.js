@@ -540,7 +540,36 @@ setInterval(async () => {
     await aggregateDaysToMonths(user._id.toString());
   }
 }, 60 * 1000);
+// ============================================================================
+// ✅ FIREBASE → MONGODB LIVE SYNC (ESP32 Data Listener)
+// ============================================================================
+const dbRef = admin.database().ref("ems_data");
 
+dbRef.on("child_added", (userSnap) => {
+  const userId = userSnap.key;
+  console.log(`📡 Listening to live data for user: ${userId}`);
+
+  userSnap.child("live").ref.on("value", async (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+
+    const { voltage, current, timestamp } = data;
+    if (voltage == null || current == null) return;
+
+    try {
+      await new Second({
+        userId,
+        voltage,
+        current,
+        timestamp: timestamp ? new Date(timestamp) : new Date(),
+      }).save();
+
+      console.log(`✅ Stored live data for user ${userId}: V=${voltage}, I=${current}`);
+    } catch (err) {
+      console.error("❌ Mongo insert error:", err.message);
+    }
+  });
+});
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
