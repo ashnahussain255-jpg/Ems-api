@@ -19,6 +19,25 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://varta-152e4-default-rtdb.firebaseio.com/"
 });
+const db = admin.database();
+const dataRef = db.ref("ems_data");
+
+dataRef.on("child_added", (userSnap) => {
+  const userId = userSnap.key;
+  userSnap.child("live").ref.on("value", async (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    const { voltage, current, timestamp } = data;
+
+    try {
+      // Save to MongoDB Second collection
+      await new Second({ userId, voltage, current, timestamp }).save();
+      console.log(`✅ Stored data for user ${userId}: V=${voltage}, I=${current}`);
+    } catch (err) {
+      console.error("❌ Mongo insert error:", err.message);
+    }
+  });
+});
 const app = express();
 app.use(express.json());
 app.use(cors({
