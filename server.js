@@ -442,11 +442,11 @@ app.post("/api/user/update-profile-image", async (req, res) => {
 // ===================== ESP32 DATA ROUTES (SAFE JSON PARSER) =====================
 app.post("/api/data", async (req, res) => {
   try {
-    const { userId, voltage, current } = req.body; // req.body already object hai
-    if (!userId || voltage == null || current == null)
-      return res.status(400).json({ error: "Missing userId or voltage/current" });
+    const { voltage, current } = req.body; // userId hata diya
+    if (voltage == null || current == null)
+      return res.status(400).json({ error: "Missing voltage/current" });
 
-    await new Second({ userId, voltage, current }).save();
+    await new Second({ voltage, current }).save();
     console.log(`✅ Data received from ESP32: ${JSON.stringify(req.body)}`);
 
     res.json({ message: "Data stored (second level)", data: req.body });
