@@ -440,28 +440,22 @@ app.post("/api/user/update-profile-image", async (req, res) => {
 });
 // ===================== ESP32 DATA ROUTES =====================
 // ===================== ESP32 DATA ROUTES (SAFE JSON PARSER) =====================
-app.use(express.text({ type: 'application/json' })); // 👈 ye line add karo (body as text parse karegi)
-
 app.post("/api/data", async (req, res) => {
   try {
-    // Clean raw data for safety
-    const rawBody = req.body.trim();
-    const data = JSON.parse(rawBody);
-
-    const { userId, voltage, current } = data;
+    const { userId, voltage, current } = req.body; // req.body already object hai
     if (!userId || voltage == null || current == null)
       return res.status(400).json({ error: "Missing userId or voltage/current" });
 
-    // Save in MongoDB
     await new Second({ userId, voltage, current }).save();
-    console.log(`✅ Data received from ESP32: ${JSON.stringify(data)}`);
+    console.log(`✅ Data received from ESP32: ${JSON.stringify(req.body)}`);
 
-    res.json({ message: "Data stored (second level)", data });
+    res.json({ message: "Data stored (second level)", data: req.body });
   } catch (err) {
     console.error("❌ /api/data Error:", err.message, req.body);
     res.status(400).json({ error: "Invalid JSON received", details: err.message });
   }
 });
+
 
 app.get("/api/monthlyAvg", async (req, res) => {
   try {
