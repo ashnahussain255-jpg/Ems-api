@@ -462,10 +462,15 @@ app.post("/api/data", async (req, res) => {
 
 app.get("/api/monthlyAvg", async (req, res) => {
   try {
-    const userId = req.query.userId; // get userId from request
-    if (!userId) return res.status(400).json({ error: "userId required" });
+    const loginUserId = req.query.loginUserId; // MongoDB _id of the logged-in user
+    if (!loginUserId) return res.status(400).json({ error: "loginUserId required" });
 
-    const data = await Month.find({ userId }).sort({ year: 1, month: 1 });
+    const user = await User.findById(loginUserId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Fetch monthly data from Month collection for this user's hardware
+    const data = await Month.find({ userId: user.userid }).sort({ year: 1, month: 1 });
+
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
