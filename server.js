@@ -472,7 +472,7 @@ app.get("/api/monthlyAvg", async (req, res) => {
     const hardwareIds = Array.isArray(user.hardwareIds) ? user.hardwareIds : [user.hardwareIds];
 
     // Month collection me data fetch karo
-    const data = await Month.find({ userId: { $in: hardwareIds } }).sort({ month: 1 });
+    const data = await Month.find({ hardwareid: { $in: hardwareIds } }).sort({ month: 1});
 
     res.json(data);
   } catch (err) {
