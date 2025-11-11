@@ -40,8 +40,10 @@ const userSchema = new mongoose.Schema({
   fullname: { type: String, default: "" },
   phone: { type: String, default: "" },
   cnic: { type: String, default: "" },
+    userid: { type: String, default: "" },
   profileImage: { type: String, default: "" },
   otp: String,
+  
   otpExpiry: Date,
   resetToken: String,
   resetTokenExpiry: Date,
@@ -178,6 +180,7 @@ app.post("/api/auth/register", async (req, res) => {
       fullname,
       phone,
       cnic,
+      userid,
       verificationToken,
       emailVerified: false,
     });
@@ -457,7 +460,7 @@ app.post("/api/data", async (req, res) => {
 });
 
 
-app.get("/api/monthlyAvg:userId", async (req, res) => {
+app.get("/api/monthlyAvg", async (req, res) => {
   try {
     const userId = req.query.userId; // get userId from request
     if (!userId) return res.status(400).json({ error: "userId required" });
