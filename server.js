@@ -180,7 +180,6 @@ app.post("/api/auth/register", async (req, res) => {
       fullname,
       phone,
       cnic,
-      userid,
       verificationToken,
       emailVerified: false,
     });
