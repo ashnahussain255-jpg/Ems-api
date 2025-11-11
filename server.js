@@ -462,25 +462,20 @@ app.post("/api/data", async (req, res) => {
 // GET monthly average for a user by userid (custom string)
 app.get("/api/monthlyAvg", async (req, res) => {
   try {
-    const userid = req.query.userid; // App se ye string bhejegi, jaise "user123"
-    if (!userid) return res.status(400).json({ error: "userid required" });
+    const userId = req.query.userid; // frontend se ye pass hoga MongoDB _id
+    if (!userId) return res.status(400).json({ error: "userid required" });
 
-    // User find by custom userid
-    const user = await User.findOne({ userid }); 
+    // User find by _id
+    const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // User ke sare hardware IDs
-    // Assuming user.hardwareIds = ["hw1", "hw2", ...]
-    if (!user.hardwareIds || user.hardwareIds.length === 0) {
-      return res.status(200).json([]); // Koi hardware register nahi
-    }
+    // hardwareIds array
+    const hardwareIds = Array.isArray(user.hardwareIds) ? user.hardwareIds : [user.hardwareIds];
 
-    // Month collection se data fetch karo jahan userId = hardwareId
-    // Agar Month collection me userId field hardwareId ke equal store hai
-    const data = await Month.find({ userId: { $in: user.hardwareIds } })
-      .sort({ year: 1, month: 1 });
+    // Month collection me data fetch karo
+    const data = await Month.find({ userid: { $in: hardwareIds } }).sort({ month: 1 });
+    res.json(data);
 
-    res.json(data); // JSON me month-wise data bhej do
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
