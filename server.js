@@ -457,7 +457,7 @@ app.post("/api/data", async (req, res) => {
 });
 
 
-app.get("/api/monthlyAvg", async (req, res) => {
+app.get("/api/monthlyAvg:userId", async (req, res) => {
   try {
     const userId = req.query.userId; // get userId from request
     if (!userId) return res.status(400).json({ error: "userId required" });
