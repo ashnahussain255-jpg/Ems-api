@@ -459,14 +459,13 @@ app.post("/api/data", async (req, res) => {
   }
 });
 
-// GET monthly average for a user by userid (custom string)
 app.get("/api/monthlyAvg", async (req, res) => {
   try {
-    const userId = req.query.userid; // frontend se ye pass hoga MongoDB _id
-    if (!userId) return res.status(400).json({ error: "userid required" });
+    const userEmail = req.query.email; // frontend se email pass hoga
+    if (!userEmail) return res.status(400).json({ error: "email required" });
 
-    // User find by _id
-    const user = await User.findById(userId);
+    // User find by email
+    const user = await User.findOne({ email: userEmail });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     // hardwareIds array
@@ -474,8 +473,8 @@ app.get("/api/monthlyAvg", async (req, res) => {
 
     // Month collection me data fetch karo
     const data = await Month.find({ userId: { $in: hardwareIds } }).sort({ month: 1 });
-    res.json(data);
 
+    res.json(data);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
