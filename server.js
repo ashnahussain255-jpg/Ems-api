@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema({
   fullname: { type: String, default: "" },
   phone: { type: String, default: "" },
   cnic: { type: String, default: "" },
-    userid: { type: String, default: "" },
+    hardwareIds: { type: String, default: "" },
   profileImage: { type: String, default: "" },
   otp: String,
   
@@ -152,7 +152,7 @@ app.get("/test", (req, res) => res.send("🚀 EMS API is live!"));
 // ===================== REGISTER (with Email Verification) =====================
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { email, password, fullname, phone, cnic,userid } = req.body;
+    const { email, password, fullname, phone, cnic,hardwareIds } = req.body;
 
     if (!email || !password)
       return res.status(400).json({ success: false, error: "Email and password required" });
@@ -180,7 +180,7 @@ app.post("/api/auth/register", async (req, res) => {
       fullname,
       phone,
       cnic,
-      userid,
+      hardwareIds,
       verificationToken,
       emailVerified: false,
     });
@@ -459,20 +459,30 @@ app.post("/api/data", async (req, res) => {
   }
 });
 
-
+// GET monthly average for a user by userid (custom string)
 app.get("/api/monthlyAvg", async (req, res) => {
   try {
-    const loginUserId = req.query.loginUserId; // MongoDB _id of the logged-in user
-    if (!loginUserId) return res.status(400).json({ error: "loginUserId required" });
+    const userid = req.query.userid; // App se ye string bhejegi, jaise "user123"
+    if (!userid) return res.status(400).json({ error: "userid required" });
 
-    const user = await User.findById(loginUserId);
+    // User find by custom userid
+    const user = await User.findOne({ userid }); 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Fetch monthly data from Month collection for this user's hardware
-    const data = await Month.find({ userId: user.userid }).sort({ year: 1, month: 1 });
+    // User ke sare hardware IDs
+    // Assuming user.hardwareIds = ["hw1", "hw2", ...]
+    if (!user.hardwareIds || user.hardwareIds.length === 0) {
+      return res.status(200).json([]); // Koi hardware register nahi
+    }
 
-    res.json(data);
+    // Month collection se data fetch karo jahan userId = hardwareId
+    // Agar Month collection me userId field hardwareId ke equal store hai
+    const data = await Month.find({ userId: { $in: user.hardwareIds } })
+      .sort({ year: 1, month: 1 });
+
+    res.json(data); // JSON me month-wise data bhej do
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
