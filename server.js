@@ -152,7 +152,7 @@ app.get("/test", (req, res) => res.send("🚀 EMS API is live!"));
 // ===================== REGISTER (with Email Verification) =====================
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { email, password, fullname, phone, cnic } = req.body;
+    const { email, password, fullname, phone, cnic,userid } = req.body;
 
     if (!email || !password)
       return res.status(400).json({ success: false, error: "Email and password required" });
@@ -180,6 +180,7 @@ app.post("/api/auth/register", async (req, res) => {
       fullname,
       phone,
       cnic,
+      userid,
       verificationToken,
       emailVerified: false,
     });
