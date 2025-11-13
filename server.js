@@ -110,20 +110,6 @@ router.get("/api/alerts/history", async (req, res) => {
 
 // ===================== USE ROUTES =====================
 app.use(router);
-
-// ===================== MONGODB + SERVER =====================
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => {
-        console.log("✅ MongoDB Connected");
-        const PORT = process.env.PORT || 3000;
-        server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    })
-    .catch(err => console.error("❌ MongoDB connection error:", err.message));
-
-
-
-
-
 // env var se JSON uthao
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
