@@ -6,14 +6,18 @@ const axios = require("axios");
 require("dotenv").config();
 const admin = require("firebase-admin");
 const http = require("http");
+const router = express.Router();
 const app = express();
+const Alert = require("../models/alert");
 app.use(express.json());
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
-
+const { alertRouter, setSocketIO } = require("./routes/alert");
+setSocketIO(io);  // Alert module me io inject karo
+app.use(alertRouter);
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 
@@ -25,7 +29,80 @@ const io = new Server(server, {
 });
 
 
+const alertSchema = new mongoose.Schema({
+    userEmail: { type: String, required: true },
+    type: { type: String, required: true },  // Example: voltageover, hightemperature
+    value: Number,
+    message: String,
+    timestamp: { type: Date, default: Date.now }
+});
 
+const Alert = mongoose.model("Alert", alertSchema);
+module.exports = Alert;
+
+
+
+
+
+let io;
+function setSocketIO(serverIO) {
+    io = serverIO;
+}
+
+// Add new alert
+router.post("/api/alerts/new", async (req, res) => {
+    try {
+        const { userEmail, type, value, message } = req.body;
+        if (!userEmail || !type) return res.status(400).json({ error: "userEmail and type required" });
+
+        const newAlert = new Alert({ userEmail, type, value, message });
+        await newAlert.save();
+
+        if (io) {
+            io.to(`user_${userEmail}_alerts`).emit("newAlert", {
+                type,
+                value,
+                message,
+                timestamp: newAlert.timestamp
+            });
+        }
+
+        res.json({ success: true, alert: newAlert });
+    } catch (err) {
+        console.error("❌ Alert creation error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get latest alert
+router.get("/api/alerts/latest", async (req, res) => {
+    try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ error: "userEmail required" });
+
+        const latestAlert = await Alert.findOne({ userEmail }).sort({ timestamp: -1 });
+        res.json({ success: true, alert: latestAlert || null });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get alert history
+router.get("/api/alerts/history", async (req, res) => {
+    try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ error: "userEmail required" });
+
+        const alerts = await Alert.find({ userEmail }).sort({ timestamp: -1 }).limit(100);
+        res.json({ success: true, alerts });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+module.exports = { alertRouter: router, setSocketIO };
 // Socket.IO initialize with CORS
 io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
@@ -803,78 +880,9 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
   }
 });
 
-const alertSchema = new mongoose.Schema({
-    userEmail: { type: String, required: true },
-    type: { type: String, required: true },  // Example: voltageover, hightemperature
-    value: Number,
-    message: String,
-    timestamp: { type: Date, default: Date.now }
-});
 
-const Alert = mongoose.model("Alert", alertSchema);
-module.exports = Alert;
-let io;
-function setSocketIO(serverIO) {
-    io = serverIO;
-}
 
-// 1️⃣ Add new alert (POST)
-router.post("/api/alerts/new", async (req, res) => {
-    try {
-        const { userEmail, type, value, message } = req.body;
-        if (!userEmail || !type) return res.status(400).json({ error: "userEmail and type required" });
 
-        const newAlert = new Alert({ userEmail, type, value, message });
-        await newAlert.save();
-
-        // 🔴 Emit real-time alert to frontend (socket.io)
-        if (io) {
-            io.to(`user_${userEmail}_alerts`).emit("newAlert", {
-                type,
-                value,
-                message,
-                timestamp: newAlert.timestamp
-            });
-        }
-
-        res.json({ success: true, alert: newAlert });
-    } catch (err) {
-        console.error("❌ Alert creation error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 2️⃣ Get latest alert for a user (GET)
-router.get("/api/alerts/latest", async (req, res) => {
-    try {
-        const { userEmail } = req.query;
-        if (!userEmail) return res.status(400).json({ error: "userEmail required" });
-
-        const latestAlert = await Alert.findOne({ userEmail }).sort({ timestamp: -1 });
-        if (!latestAlert) return res.json({ message: "No alerts", alert: null });
-
-        res.json({ success: true, alert: latestAlert });
-    } catch (err) {
-        console.error("❌ Get latest alert error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 3️⃣ Get all alerts for a user (history) (GET)
-router.get("/api/alerts/history", async (req, res) => {
-    try {
-        const { userEmail } = req.query;
-        if (!userEmail) return res.status(400).json({ error: "userEmail required" });
-
-        const alerts = await Alert.find({ userEmail }).sort({ timestamp: -1 }).limit(100);
-        res.json({ success: true, alerts });
-    } catch (err) {
-        console.error("❌ Get alerts history error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-module.exports = { alertRouter: router, setSocketIO };
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
