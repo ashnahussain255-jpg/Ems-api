@@ -803,7 +803,78 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
   }
 });
 
+const alertSchema = new mongoose.Schema({
+    userEmail: { type: String, required: true },
+    type: { type: String, required: true },  // Example: voltageover, hightemperature
+    value: Number,
+    message: String,
+    timestamp: { type: Date, default: Date.now }
+});
 
+const Alert = mongoose.model("Alert", alertSchema);
+module.exports = Alert;
+let io;
+function setSocketIO(serverIO) {
+    io = serverIO;
+}
+
+// 1️⃣ Add new alert (POST)
+router.post("/api/alerts/new", async (req, res) => {
+    try {
+        const { userEmail, type, value, message } = req.body;
+        if (!userEmail || !type) return res.status(400).json({ error: "userEmail and type required" });
+
+        const newAlert = new Alert({ userEmail, type, value, message });
+        await newAlert.save();
+
+        // 🔴 Emit real-time alert to frontend (socket.io)
+        if (io) {
+            io.to(`user_${userEmail}_alerts`).emit("newAlert", {
+                type,
+                value,
+                message,
+                timestamp: newAlert.timestamp
+            });
+        }
+
+        res.json({ success: true, alert: newAlert });
+    } catch (err) {
+        console.error("❌ Alert creation error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2️⃣ Get latest alert for a user (GET)
+router.get("/api/alerts/latest", async (req, res) => {
+    try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ error: "userEmail required" });
+
+        const latestAlert = await Alert.findOne({ userEmail }).sort({ timestamp: -1 });
+        if (!latestAlert) return res.json({ message: "No alerts", alert: null });
+
+        res.json({ success: true, alert: latestAlert });
+    } catch (err) {
+        console.error("❌ Get latest alert error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3️⃣ Get all alerts for a user (history) (GET)
+router.get("/api/alerts/history", async (req, res) => {
+    try {
+        const { userEmail } = req.query;
+        if (!userEmail) return res.status(400).json({ error: "userEmail required" });
+
+        const alerts = await Alert.find({ userEmail }).sort({ timestamp: -1 }).limit(100);
+        res.json({ success: true, alerts });
+    } catch (err) {
+        console.error("❌ Get alerts history error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+module.exports = { alertRouter: router, setSocketIO };
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
