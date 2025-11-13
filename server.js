@@ -796,13 +796,7 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
   }
 });
 
-// 2️⃣ Socket join for optimization
-socket.on('joinOpt', (payload) => {
-  if (payload && payload.userEmail) {
-    socket.join(`user_${payload.userEmail}_opt`);
-    console.log('Socket', socket.id, 'joined room for optimization: user_' + payload.userEmail + '_opt');
-  }
-});
+
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
