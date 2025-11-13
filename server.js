@@ -1,56 +1,50 @@
+// ===================== IMPORTS =====================
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const bcrypt = require("bcrypt");
-const axios = require("axios");
 require("dotenv").config();
-const admin = require("firebase-admin");
 const http = require("http");
-const router = express.Router();
-const app = express();
-const Alert = require("../models/alert");
-const server = http.createServer(app);
 const { Server } = require("socket.io");
 
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+// ===================== APP + SERVER =====================
+const app = express();
+const server = http.createServer(app);
+
+// ===================== MIDDLEWARE =====================
 app.use(express.json());
 app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 }));
-const { alertRouter, setSocketIO } = require("./routes/alert");
-setSocketIO(io);  // Alert module me io inject karo
-app.use(alertRouter);
 
-// Socket.IO initialize with CORS
-io.on("connection", (socket) => {
-  console.log("New client connected:", socket.id);
-
-  socket.on("join", (payload) => {
-    if (payload && payload.userEmail) {
-      socket.join(`user_${payload.userEmail}`);
-      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}`);
-    }
-  });
-
-  socket.on("joinOpt", (payload) => {
-    if (payload && payload.userEmail) {
-      socket.join(`user_${payload.userEmail}_opt`);
-      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}_opt`);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
-  });
+// ===================== SOCKET.IO =====================
+const io = new Server(server, {
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+io.on("connection", (socket) => {
+    console.log("New client connected:", socket.id);
+
+    socket.on("join", ({ userEmail }) => {
+        if (userEmail) {
+            socket.join(`user_${userEmail}_alerts`);
+            console.log(`Socket ${socket.id} joined room user_${userEmail}_alerts`);
+        }
+    });
+
+    socket.on("joinOpt", ({ userEmail }) => {
+        if (userEmail) {
+            socket.join(`user_${userEmail}_opt`);
+            console.log(`Socket ${socket.id} joined room user_${userEmail}_opt`);
+        }
+    });
+
+    socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
+});
+
+// ===================== ALERT MODEL =====================
+const mongoose = require("mongoose");
 const alertSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
     type: { type: String, required: true },  // Example: voltageover, hightemperature
@@ -58,18 +52,10 @@ const alertSchema = new mongoose.Schema({
     message: String,
     timestamp: { type: Date, default: Date.now }
 });
+const Alert = mongoose.models.Alert || mongoose.model("Alert", alertSchema);
 
-const Alert = mongoose.model("Alert", alertSchema);
-module.exports = Alert;
-
-
-
-
-
-let io;
-function setSocketIO(serverIO) {
-    io = serverIO;
-}
+// ===================== ALERT ROUTES =====================
+const router = express.Router();
 
 // Add new alert
 router.post("/api/alerts/new", async (req, res) => {
@@ -80,14 +66,13 @@ router.post("/api/alerts/new", async (req, res) => {
         const newAlert = new Alert({ userEmail, type, value, message });
         await newAlert.save();
 
-        if (io) {
-            io.to(`user_${userEmail}_alerts`).emit("newAlert", {
-                type,
-                value,
-                message,
-                timestamp: newAlert.timestamp
-            });
-        }
+        // Emit via socket.io
+        io.to(`user_${userEmail}_alerts`).emit("newAlert", {
+            type,
+            value,
+            message,
+            timestamp: newAlert.timestamp
+        });
 
         res.json({ success: true, alert: newAlert });
     } catch (err) {
@@ -97,7 +82,7 @@ router.post("/api/alerts/new", async (req, res) => {
 });
 
 // Get latest alert
-router.get("/api/alerts/latest", async (req, res) => {
+router.get("/api/alerts/latest_alert", async (req, res) => {
     try {
         const { userEmail } = req.query;
         if (!userEmail) return res.status(400).json({ error: "userEmail required" });
@@ -124,7 +109,17 @@ router.get("/api/alerts/history", async (req, res) => {
     }
 });
 
-module.exports = { alertRouter: router, setSocketIO };
+// ===================== USE ROUTES =====================
+app.use(router);
+
+// ===================== MONGODB + SERVER =====================
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => {
+        console.log("✅ MongoDB Connected");
+        const PORT = process.env.PORT || 3000;
+        server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    })
+    .catch(err => console.error("❌ MongoDB connection error:", err.message));
 
 
 
