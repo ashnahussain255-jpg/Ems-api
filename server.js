@@ -9,15 +9,6 @@ const http = require("http");
 const router = express.Router();
 const app = express();
 const Alert = require("../models/alert");
-app.use(express.json());
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
-const { alertRouter, setSocketIO } = require("./routes/alert");
-setSocketIO(io);  // Alert module me io inject karo
-app.use(alertRouter);
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 
@@ -27,7 +18,38 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
+app.use(express.json());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+const { alertRouter, setSocketIO } = require("./routes/alert");
+setSocketIO(io);  // Alert module me io inject karo
+app.use(alertRouter);
 
+// Socket.IO initialize with CORS
+io.on("connection", (socket) => {
+  console.log("New client connected:", socket.id);
+
+  socket.on("join", (payload) => {
+    if (payload && payload.userEmail) {
+      socket.join(`user_${payload.userEmail}`);
+      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}`);
+    }
+  });
+
+  socket.on("joinOpt", (payload) => {
+    if (payload && payload.userEmail) {
+      socket.join(`user_${payload.userEmail}_opt`);
+      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}_opt`);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
 
 const alertSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
@@ -103,28 +125,7 @@ router.get("/api/alerts/history", async (req, res) => {
 });
 
 module.exports = { alertRouter: router, setSocketIO };
-// Socket.IO initialize with CORS
-io.on("connection", (socket) => {
-  console.log("New client connected:", socket.id);
 
-  socket.on("join", (payload) => {
-    if (payload && payload.userEmail) {
-      socket.join(`user_${payload.userEmail}`);
-      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}`);
-    }
-  });
-
-  socket.on("joinOpt", (payload) => {
-    if (payload && payload.userEmail) {
-      socket.join(`user_${payload.userEmail}_opt`);
-      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}_opt`);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
-  });
-});
 
 
 
