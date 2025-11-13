@@ -4,6 +4,13 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
 require("dotenv").config();
+const app = express();
+app.use(express.json());
+app.use(cors({
+  origin: "*", // ✅ allow all origins globally (mobile app, web, IoT)
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 const admin = require("firebase-admin");
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
@@ -32,13 +39,7 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://varta-152e4-default-rtdb.firebaseio.com/"
 });
-const app = express();
-app.use(express.json());
-app.use(cors({
-  origin: "*", // ✅ allow all origins globally (mobile app, web, IoT)
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+
 
 // ===================== LOG ENV VARIABLES =====================
 console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
@@ -685,28 +686,27 @@ app.post("/api/device/:id/toggle", async (req, res) => {
     }
 });
 
-// 6️⃣ Update latest units/voltage
+// 6️⃣ Update latest units/voltage/current
 app.post("/api/device/:id/latest", async (req, res) => {
     const { id } = req.params;
-    const { units, voltage } = req.body;
+    const { units, voltage, current } = req.body;
+
     try {
         const device = await Device.findOne({ id });
         if (!device) return res.status(404).json({ error: "Device not found" });
 
-        device.latest = { units, voltage };
-        device.datalog.push({ units, voltage, timestamp: new Date() });
+        device.latest = { units, voltage, current }; // current bhi save
+        device.datalog.push({ units, voltage, current, timestamp: new Date() });
         await device.save();
+
+        // Real-time emit for dashboard
+        io.to(`user_${device.userEmail}`).emit("latestData", { id, units, voltage, current });
 
         res.json({ message: "Latest data updated", latest: device.latest });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
-
-
-
-
-
 
 // API to get user profile
 app.get('/api/userProfile', async (req, res) => {
@@ -742,10 +742,11 @@ app.get('/api/onDevices', async (req, res) => {
         devices: updatedDevices
     });
 });
-app.post('/api/device/:id/latest', async (req, res) => {
+// 1️⃣ Optimization screen latest units only
+app.post('/api/device/:id/opt-latest', async (req, res) => {
   try {
     const deviceId = req.params.id;
-    const { units, voltage, current, timestamp, userEmail } = req.body;
+    const { units, userEmail, timestamp } = req.body;
     if (!units || !userEmail) return res.status(400).json({ error: 'units and userEmail required' });
 
     const device = await Device.findOneAndUpdate(
@@ -753,8 +754,6 @@ app.post('/api/device/:id/latest', async (req, res) => {
       {
         $set: {
           latestUnits: units,
-          voltage: voltage ?? 0,
-          current: current ?? 0,
           latestTimestamp: timestamp ? new Date(timestamp) : new Date()
         }
       },
@@ -765,29 +764,11 @@ app.post('/api/device/:id/latest', async (req, res) => {
       deviceId: device.id,
       name: device.name,
       units: device.latestUnits,
-      voltage: device.voltage,
-      current: device.current,
-      timestamp: device.latestTimestamp,
-      userEmail: device.userEmail
+      timestamp: device.latestTimestamp
     };
 
-    // Emit to all sockets listening for this userEmail
-    io.to(`user_${userEmail}`).emit('latest', payload);
-    io.emit('latest', payload);
-
-    // Create alert if units exceed threshold
-    const THRESHOLD = 200;
-    if (units >= THRESHOLD) {
-      const message = `High units on ${device.name || device.id}: ${units}`;
-      const alertDoc = await Alert.create({
-        userEmail,
-        deviceId: device.id,
-        message,
-        units
-      });
-      io.to(`user_${userEmail}`).emit('alert', alertDoc);
-      io.emit('alert', alertDoc);
-    }
+    // Emit to sockets for optimization screen
+    io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
 
     res.json({ success: true, device: payload });
   } catch (err) {
@@ -795,15 +776,12 @@ app.post('/api/device/:id/latest', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-app.get('/api/alerts/:userEmail', async (req, res) => {
-  const userEmail = req.params.userEmail;
-  const alerts = await Alert.find({ userEmail }).sort({ createdAt: -1 }).limit(50);
-  res.json(alerts);
-});
-socket.on('join', (payload) => {
+
+// 2️⃣ Socket join for optimization
+socket.on('joinOpt', (payload) => {
   if (payload && payload.userEmail) {
-    socket.join(`user_${payload.userEmail}`);
-    console.log('Socket', socket.id, 'joined room user_' + payload.userEmail);
+    socket.join(`user_${payload.userEmail}_opt`);
+    console.log('Socket', socket.id, 'joined room for optimization: user_' + payload.userEmail + '_opt');
   }
 });
 // ===================== CONNECT MONGO + START SERVER =====================
