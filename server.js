@@ -588,7 +588,7 @@ dbRef.on("child_added", (userSnap) => {
   });
 });
 const deviceSchema = new mongoose.Schema({
-    userId: { type: String, required: true },
+    userEmail: { type: String, required: true },
     id: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     image: Number,
@@ -603,10 +603,10 @@ const deviceSchema = new mongoose.Schema({
 
 const Device = mongoose.model("Device", deviceSchema);
 // 1️⃣ Get all devices of a user
-app.get("/api/devices/:userId", async (req, res) => {
-    const { userId } = req.params;
+app.get("/api/devices/:userEmail", async (req, res) => {
+    const { userEmail } = req.params;
     try {
-        const devices = await Device.find({ userId });
+        const devices = await Device.find({ userEmail });
         res.json(devices);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -627,14 +627,14 @@ app.get("/api/device/:id", async (req, res) => {
 
 // 3️⃣ Add new device
 app.post("/api/device/new", async (req, res) => {
-    const { userId, id, name, image, voltage, current } = req.body;
-    if (!userId || !id || !name) return res.status(400).json({ error: "userId, id, name required" });
+    const { userEmail, id, name, image, voltage, current } = req.body;
+    if (!userEmail || !id || !name) return res.status(400).json({ error: "userEmail, id, name required" });
 
     try {
         const existing = await Device.findOne({ id });
         if (existing) return res.status(400).json({ error: "Device already exists" });
 
-        const device = new Device({ userId, id, name, image, voltage, current });
+        const device = new Device({ userEmail, id, name, image, voltage, current });
         await device.save();
         res.json({ message: "Device added", device });
     } catch (err) {
@@ -705,8 +705,8 @@ app.get('/api/userProfile', async (req, res) => {
 
 // API to get ON devices
 app.get('/api/onDevices', async (req, res) => {
-    const userId = req.query.userId;
-    if (!userId) return res.status(400).json({ success: false, message: 'UserId required' });
+    const userEmail = req.query.userId;
+    if (!userEmail) return res.status(400).json({ success: false, message: 'UserEmail required' });
 
     const devices = await Device.find({ userId, isOn: true });
     
