@@ -591,7 +591,7 @@ const deviceSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
     id: { type: String, required: true, unique: true },
     name: { type: String, required: true },
-    image: Number,
+ image: { type: String, required: true },
     voltage: Number,
     current: Number,
     isOn: { type: Boolean, default: false },
@@ -626,15 +626,15 @@ app.get("/api/device/:id", async (req, res) => {
 });
 
 // 3️⃣ Add new device
-app.post("/api/device/new", async (req, res) => {
-    const {userEmail ,id, name, image, voltage, current } = req.body;
+ app.post("/api/device/new", async (req, res) => {
+    const { userEmail, id, name, image, voltage, current } = req.body;
     if (!userEmail || !id || !name) return res.status(400).json({ error: "userEmail, id, name required" });
 
     try {
         const existing = await Device.findOne({ id });
         if (existing) return res.status(400).json({ error: "Device already exists" });
 
-        const device = new Device({userEmail,id, name, image, voltage, current });
+        const device = new Device({ userEmail, id, name, image, voltage, current });
         await device.save();
         res.json({ message: "Device added", device });
     } catch (err) {
