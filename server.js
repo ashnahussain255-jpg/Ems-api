@@ -20,14 +20,6 @@ const { Server } = require("socket.io");
 const server = http.createServer(app);
 
 // Socket.IO initialize with CORS
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
-
-// Socket connection
 io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
 
@@ -817,6 +809,6 @@ mongoose
   .then(() => {
     console.log("✅ MongoDB Connected");
     const port = process.env.PORT || 3000;
-    app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
+    server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
   })
   .catch((err) => console.error("❌ MongoDB Connection Error:", err.message));
