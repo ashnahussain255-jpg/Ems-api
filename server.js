@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema({
     hardwareIds: { type: String, default: "" },
   profileImage: { type: String, default: "" },
   otp: String,
-  
+
   otpExpiry: Date,
   resetToken: String,
   resetTokenExpiry: Date,
@@ -597,6 +597,12 @@ const deviceSchema = new mongoose.Schema({
     isOn: { type: Boolean, default: false },
     latest: { units: Number, voltage: Number },
     datalog: [{ units: Number, voltage: Number, timestamp: Date }]
+
+ 
+    type: String,
+
+    ratedPower: Number,
+   
 });
 
 const Device = mongoose.model("Device", deviceSchema);
@@ -684,21 +690,8 @@ app.post("/api/device/:id/latest", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-const UserSchema = new mongoose.Schema({
-    email: String,
-    fullname: String,
-    profileImageUrl: String
-});
 
-const DeviceSchema = new mongoose.Schema({
-    userId: String,
-    name: String,
-    type: String,
-    isOn: Boolean,
-    ratedPower: Number,
-    voltage: Number,
-    current: Number
-});
+
 
 const User = mongoose.model('User', UserSchema);
 const Device = mongoose.model('Device', DeviceSchema);
