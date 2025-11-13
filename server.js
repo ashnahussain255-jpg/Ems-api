@@ -587,6 +587,19 @@ dbRef.on("child_added", (userSnap) => {
     }
   });
 });
+const deviceSchema = new mongoose.Schema({
+    userId: { type: String, required: true },
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    image: Number,
+    voltage: Number,
+    current: Number,
+    isOn: { type: Boolean, default: false },
+    latest: { units: Number, voltage: Number },
+    datalog: [{ units: Number, voltage: Number, timestamp: Date }]
+});
+
+const Device = mongoose.model("Device", deviceSchema);
 // 1️⃣ Get all devices of a user
 app.get("/api/devices/:userId", async (req, res) => {
     const { userId } = req.params;
