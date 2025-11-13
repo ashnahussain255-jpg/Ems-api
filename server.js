@@ -684,6 +684,60 @@ app.post("/api/device/:id/latest", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+const UserSchema = new mongoose.Schema({
+    email: String,
+    fullname: String,
+    profileImageUrl: String
+});
+
+const DeviceSchema = new mongoose.Schema({
+    userId: String,
+    name: String,
+    type: String,
+    isOn: Boolean,
+    ratedPower: Number,
+    voltage: Number,
+    current: Number
+});
+
+const User = mongoose.model('User', UserSchema);
+const Device = mongoose.model('Device', DeviceSchema);
+
+// API to get user profile
+app.get('/api/userProfile', async (req, res) => {
+    const email = req.query.email;
+    if (!email) return res.status(400).json({ success: false, message: 'Email required' });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    res.json({ success: true, data: user });
+});
+
+// API to get ON devices
+app.get('/api/onDevices', async (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) return res.status(400).json({ success: false, message: 'UserId required' });
+
+    const devices = await Device.find({ userId, isOn: true });
+    
+    // Calculate voltage/current for each device (example logic)
+    const totalVoltage = 220; 
+    const totalPower = devices.reduce((acc, d) => acc + d.ratedPower, 0);
+    const updatedDevices = devices.map(d => {
+        const devicePower = totalPower > 0 ? totalPower * (d.ratedPower / totalPower) : 0;
+        const deviceCurrent = devicePower / totalVoltage;
+        return {...d._doc, voltage: totalVoltage, current: deviceCurrent};
+    });
+
+    res.json({
+        success: true,
+        totalVoltage,
+        totalCurrent: updatedDevices.reduce((acc,d)=>acc+d.current,0),
+        devices: updatedDevices
+    });
+});
+
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
