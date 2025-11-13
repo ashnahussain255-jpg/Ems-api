@@ -17,12 +17,22 @@ const io = require("socket.io")(http, {
   cors: { origin: "*" }
 });
 io.on("connection", (socket) => {
-  console.log("New client connected: ", socket.id);
+  console.log("New client connected:", socket.id);
 
-  socket.on("join", (payload) => {
+  // joinOpt listener
+  socket.on('joinOpt', (payload) => {
+    console.log('joinOpt received:', payload);
     if (payload && payload.userEmail) {
       socket.join(`user_${payload.userEmail}`);
       console.log(`Socket ${socket.id} joined room user_${payload.userEmail}`);
+    }
+  });
+
+  // Existing join listener
+  socket.on('join', (payload) => {
+    if (payload && payload.userEmail) {
+      socket.join(`user_${payload.userEmail}`);
+      console.log('Socket', socket.id, 'joined room user_' + payload.userEmail);
     }
   });
 });
