@@ -705,10 +705,10 @@ app.get('/api/userProfile', async (req, res) => {
 
 // API to get ON devices
 app.get('/api/onDevices', async (req, res) => {
-    const userEmail = req.query.userId;
+    const userEmail = req.query.userEmail;
     if (!userEmail) return res.status(400).json({ success: false, message: 'UserEmail required' });
 
-    const devices = await Device.find({ userId, isOn: true });
+    const devices = await Device.find({ userEmail, isOn: true });
     
     // Calculate voltage/current for each device (example logic)
     const totalVoltage = 220; 
