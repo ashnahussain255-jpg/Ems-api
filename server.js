@@ -4,38 +4,55 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
 require("dotenv").config();
+const admin = require("firebase-admin");
+
 const app = express();
 app.use(express.json());
 app.use(cors({
-  origin: "*", // ✅ allow all origins globally (mobile app, web, IoT)
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
-const admin = require("firebase-admin");
-const http = require("http").createServer(app);
-const io = require("socket.io")(http, {
-  cors: { origin: "*" }
+
+const http = require("http");
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+
+// Socket.IO initialize with CORS
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
+
+// Socket connection
 io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
 
-  // joinOpt listener
-  socket.on('joinOpt', (payload) => {
-    console.log('joinOpt received:', payload);
+  socket.on("join", (payload) => {
     if (payload && payload.userEmail) {
       socket.join(`user_${payload.userEmail}`);
       console.log(`Socket ${socket.id} joined room user_${payload.userEmail}`);
     }
   });
 
-  // Existing join listener
-  socket.on('join', (payload) => {
+  socket.on("joinOpt", (payload) => {
     if (payload && payload.userEmail) {
-      socket.join(`user_${payload.userEmail}`);
-      console.log('Socket', socket.id, 'joined room user_' + payload.userEmail);
+      socket.join(`user_${payload.userEmail}_opt`);
+      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}_opt`);
     }
   });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
 });
+
+
+
+
 // env var se JSON uthao
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
