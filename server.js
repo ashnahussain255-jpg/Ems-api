@@ -14,10 +14,17 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-const http = require("http");
+const server = http.createServer(app);
 const { Server } = require("socket.io");
 
-const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+
 
 // Socket.IO initialize with CORS
 io.on("connection", (socket) => {
