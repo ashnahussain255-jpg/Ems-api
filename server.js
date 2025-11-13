@@ -6,7 +6,7 @@ require("dotenv").config();
 const http = require("http");
 const { Server } = require("socket.io");
 const admin = require("firebase-admin");
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 // ===================== APP + SERVER =====================
 const app = express();
 const server = http.createServer(app);
