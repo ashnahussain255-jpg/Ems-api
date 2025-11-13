@@ -689,8 +689,8 @@ app.post("/api/device/:id/latest", async (req, res) => {
 
 
 
-const User = mongoose.model('User', UserSchema);
-const Device = mongoose.model('Device', DeviceSchema);
+
+
 
 // API to get user profile
 app.get('/api/userProfile', async (req, res) => {
