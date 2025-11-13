@@ -587,6 +587,90 @@ dbRef.on("child_added", (userSnap) => {
     }
   });
 });
+// 1️⃣ Get all devices of a user
+app.get("/api/devices/:userId", async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const devices = await Device.find({ userId });
+        res.json(devices);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2️⃣ Get single device by id
+app.get("/api/device/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+        const device = await Device.findOne({ id });
+        if (!device) return res.status(404).json({ error: "Device not found" });
+        res.json(device);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3️⃣ Add new device
+app.post("/api/device/new", async (req, res) => {
+    const { userId, id, name, image, voltage, current } = req.body;
+    if (!userId || !id || !name) return res.status(400).json({ error: "userId, id, name required" });
+
+    try {
+        const existing = await Device.findOne({ id });
+        if (existing) return res.status(400).json({ error: "Device already exists" });
+
+        const device = new Device({ userId, id, name, image, voltage, current });
+        await device.save();
+        res.json({ message: "Device added", device });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4️⃣ Delete device
+app.delete("/api/device/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+        await Device.deleteOne({ id });
+        res.json({ message: "Device deleted" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 5️⃣ Toggle device ON/OFF
+app.post("/api/device/:id/toggle", async (req, res) => {
+    const { id } = req.params;
+    const { isOn } = req.body;
+    try {
+        const device = await Device.findOne({ id });
+        if (!device) return res.status(404).json({ error: "Device not found" });
+
+        device.isOn = isOn;
+        await device.save();
+        res.json({ message: "Device updated", device });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 6️⃣ Update latest units/voltage
+app.post("/api/device/:id/latest", async (req, res) => {
+    const { id } = req.params;
+    const { units, voltage } = req.body;
+    try {
+        const device = await Device.findOne({ id });
+        if (!device) return res.status(404).json({ error: "Device not found" });
+
+        device.latest = { units, voltage };
+        device.datalog.push({ units, voltage, timestamp: new Date() });
+        await device.save();
+
+        res.json({ message: "Latest data updated", latest: device.latest });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
