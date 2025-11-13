@@ -599,6 +599,9 @@ const deviceSchema = new mongoose.Schema({
     datalog: [{ units: Number, voltage: Number, timestamp: Date }],
     type: String,
     ratedPower: Number,
+  latestUnits: { type: Number, default: 0 },
+  latestTimestamp: Date,
+ 
 });
 
 const Device = mongoose.model("Device", deviceSchema);
@@ -726,7 +729,70 @@ app.get('/api/onDevices', async (req, res) => {
         devices: updatedDevices
     });
 });
+app.post('/api/device/:id/latest', async (req, res) => {
+  try {
+    const deviceId = req.params.id;
+    const { units, voltage, current, timestamp, userEmail } = req.body;
+    if (!units || !userEmail) return res.status(400).json({ error: 'units and userEmail required' });
 
+    const device = await Device.findOneAndUpdate(
+      { id: deviceId, userEmail },
+      {
+        $set: {
+          latestUnits: units,
+          voltage: voltage ?? 0,
+          current: current ?? 0,
+          latestTimestamp: timestamp ? new Date(timestamp) : new Date()
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const payload = {
+      deviceId: device.id,
+      name: device.name,
+      units: device.latestUnits,
+      voltage: device.voltage,
+      current: device.current,
+      timestamp: device.latestTimestamp,
+      userEmail: device.userEmail
+    };
+
+    // Emit to all sockets listening for this userEmail
+    io.to(`user_${userEmail}`).emit('latest', payload);
+    io.emit('latest', payload);
+
+    // Create alert if units exceed threshold
+    const THRESHOLD = 200;
+    if (units >= THRESHOLD) {
+      const message = `High units on ${device.name || device.id}: ${units}`;
+      const alertDoc = await Alert.create({
+        userEmail,
+        deviceId: device.id,
+        message,
+        units
+      });
+      io.to(`user_${userEmail}`).emit('alert', alertDoc);
+      io.emit('alert', alertDoc);
+    }
+
+    res.json({ success: true, device: payload });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get('/api/alerts/:userEmail', async (req, res) => {
+  const userEmail = req.params.userEmail;
+  const alerts = await Alert.find({ userEmail }).sort({ createdAt: -1 }).limit(50);
+  res.json(alerts);
+});
+socket.on('join', (payload) => {
+  if (payload && payload.userEmail) {
+    socket.join(`user_${payload.userEmail}`);
+    console.log('Socket', socket.id, 'joined room user_' + payload.userEmail);
+  }
+});
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
