@@ -44,7 +44,6 @@ io.on("connection", (socket) => {
 });
 
 // ===================== ALERT MODEL =====================
-const mongoose = require("mongoose");
 const alertSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
     type: { type: String, required: true },  // Example: voltageover, hightemperature
