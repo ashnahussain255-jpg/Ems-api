@@ -5,7 +5,20 @@ const bcrypt = require("bcrypt");
 const axios = require("axios");
 require("dotenv").config();
 const admin = require("firebase-admin");
+const http = require("http").createServer(app);
+const io = require("socket.io")(http, {
+  cors: { origin: "*" }
+});
+io.on("connection", (socket) => {
+  console.log("New client connected: ", socket.id);
 
+  socket.on("join", (payload) => {
+    if (payload && payload.userEmail) {
+      socket.join(`user_${payload.userEmail}`);
+      console.log(`Socket ${socket.id} joined room user_${payload.userEmail}`);
+    }
+  });
+});
 // env var se JSON uthao
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT env var missing");
