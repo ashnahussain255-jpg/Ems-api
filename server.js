@@ -804,28 +804,48 @@ app.get('/api/userProfile', async (req, res) => {
     res.json({ success: true, data: user });
 });
 
-// API to get ON devices
+// API to get ON devices with real-time data and datalog
 app.get('/api/onDevices', async (req, res) => {
     const userEmail = req.query.userEmail;
-    if (!userEmail) return res.status(400).json({ success: false, message: 'UserEmail required' });
+    if (!userEmail) 
+        return res.status(400).json({ success: false, message: 'UserEmail required' });
 
-    const devices = await Device.find({ userEmail, isOn: true });
-    
-    // Calculate voltage/current for each device (example logic)
-    const totalVoltage = 220; 
-    const totalPower = devices.reduce((acc, d) => acc + d.ratedPower, 0);
-    const updatedDevices = devices.map(d => {
-        const devicePower = totalPower > 0 ? totalPower * (d.ratedPower / totalPower) : 0;
-        const deviceCurrent = devicePower / totalVoltage;
-        return {...d._doc, voltage: totalVoltage, current: deviceCurrent};
-    });
+    try {
+        // Get only ON devices for this user
+        const devices = await Device.find({ userEmail, isOn: true });
 
-    res.json({
-        success: true,
-        totalVoltage,
-        totalCurrent: updatedDevices.reduce((acc,d)=>acc+d.current,0),
-        devices: updatedDevices
-    });
+        // Map devices to include latest data and last 50 datalog entries for graph
+        const updatedDevices = devices.map(d => {
+            const voltage = d.latest?.voltage || 0;
+            const current = d.latest?.current || 0;
+
+            return {
+                id: d.id,
+                name: d.name,
+                type: d.type,
+                isOn: d.isOn,
+                voltage,
+                current,
+                ratedPower: d.ratedPower,
+                datalog: d.datalog.slice(-50) // last 50 readings for real-time graph
+            };
+        });
+
+        // Calculate total current & voltage
+        const totalVoltage = 220; // assuming mains voltage
+        const totalCurrent = updatedDevices.reduce((acc, d) => acc + d.current, 0);
+
+        res.json({
+            success: true,
+            totalVoltage,
+            totalCurrent,
+            devices: updatedDevices
+        });
+
+    } catch (err) {
+        console.error("❌ Error fetching ON devices:", err.message);
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 // 1️⃣ Optimization screen latest units only
 app.post('/api/device/:id/opt-latest', async (req, res) => {
