@@ -7,6 +7,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
+const axios = require("axios");
 // ===================== APP + SERVER =====================
 const app = express();
 const server = http.createServer(app);
