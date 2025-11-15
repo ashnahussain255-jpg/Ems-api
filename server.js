@@ -28,13 +28,12 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
     
-   // Optimization screen room join
+    // Optimization screen room join
     socket.on("join_opt", ({ userEmail }) => {
         socket.join(`user_${userEmail}_opt`);
         console.log(`User joined optimization room: ${userEmail}`);
     });
 
-})
     socket.on("join", ({ userEmail }) => {
         if (userEmail) {
             socket.join(`user_${userEmail}_alerts`);
@@ -51,6 +50,7 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
 });
+
 
 // ===================== ALERT MODEL =====================
 const alertSchema = new mongoose.Schema({
