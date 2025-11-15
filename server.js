@@ -781,9 +781,16 @@ app.post("/api/device/:id/latest", async (req, res) => {
         const device = await Device.findOne({ id });
         if (!device) return res.status(404).json({ error: "Device not found" });
 
-        device.latest = { deviceId,units, voltage, current }; // current bhi save
-        device.datalog.push({deviceId,units, voltage, current, timestamp: new Date() });
-        await device.save();
+       const device = await Device.findOne({ id, userEmail: req.body.userEmail });
+if (!device) return res.status(404).json({ error: "Device not found" });
+
+device.latest = { deviceId, units, voltage, current };
+device.datalog.push({ deviceId, units, voltage, current, timestamp: new Date() });
+await device.save();
+
+io.to(`user_${device.userEmail}`).emit("latestData", { id, deviceId, units, voltage, current });
+
+res.json({ message: "Latest data updated", latest: device.latest });
 
         // Real-time emit for dashboard
         io.to(`user_${device.userEmail}`).emit("latestData", { id,deviceId, units, voltage, current });
@@ -855,16 +862,22 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     const { units, userEmail, timestamp } = req.body;
     if (!units || !userEmail) return res.status(400).json({ error: 'units and userEmail required' });
 
-    const device = await Device.findOneAndUpdate(
-      { id: deviceId, userEmail },
-      {
-        $set: {
-          latestUnits: units,
-          latestTimestamp: timestamp ? new Date(timestamp) : new Date()
-        }
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+  const device = await Device.findOne({ id: deviceId, userEmail });
+if (!device) return res.status(404).json({ error: "Device not found" });
+
+device.latestUnits = units;
+device.latestTimestamp = timestamp ? new Date(timestamp) : new Date();
+await device.save();
+
+const payload = {
+  deviceId: device.id,
+  name: device.name,
+  units: device.latestUnits,
+  timestamp: device.latestTimestamp
+};
+
+io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
+res.json({ success: true, device: payload });
 
     const payload = {
       deviceId: device.id,
