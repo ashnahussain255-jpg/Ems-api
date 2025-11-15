@@ -772,45 +772,58 @@ app.post("/api/device/:id/toggle", async (req, res) => {
     }
 });
 
-//// 6️⃣ Update latest units/voltage/current (Safe version)
+//// ✅ Safe & Robust Update latest units/voltage/current
 app.post("/api/device/:id/latest", async (req, res) => {
   try {
     const { id } = req.params;
-    const { deviceId, units, voltage, current, userEmail } = req.body;
+    let { deviceId, units, voltage, current, userEmail } = req.body;
 
+    // 1️⃣ Validate required fields
     if (!userEmail || !deviceId) {
-      return res.status(400).json({ error: "userEmail and deviceId required" });
+      return res.status(400).json({ error: "userEmail and deviceId are required" });
     }
 
+    // 2️⃣ Validate numeric values
+    voltage = parseFloat(voltage);
+    current = parseFloat(current);
+    if (isNaN(voltage) || isNaN(current)) {
+      return res.status(400).json({ error: "Voltage and Current must be numeric" });
+    }
+
+    // 3️⃣ Find device
     const device = await Device.findOne({ id, userEmail });
     if (!device) return res.status(404).json({ error: "Device not found" });
 
-    // ✅ Update latest reading
+    // 4️⃣ Ensure datalog array exists
+    if (!Array.isArray(device.datalog)) device.datalog = [];
+
+    // 5️⃣ Update latest reading
     const latestTimestamp = new Date();
     device.latest = { deviceId, units, voltage, current };
     device.latestTimestamp = latestTimestamp;
 
-    // ✅ Push to datalog (for history/graph)
+    // 6️⃣ Push to datalog (keep last 100 entries)
     device.datalog.push({ deviceId, units, voltage, current, timestamp: latestTimestamp });
-
-    // Optional: keep only last 100 entries to prevent DB bloating
     if (device.datalog.length > 100) {
       device.datalog = device.datalog.slice(-100);
     }
 
+    // 7️⃣ Save device safely
     await device.save();
 
-    // ✅ Emit real-time update to Socket.IO room
+    // 8️⃣ Emit real-time update safely
     const payload = { id, deviceId, units, voltage, current, timestamp: latestTimestamp };
-    io.to(`user_${userEmail}`).emit("latestData", payload);
+    if (io) {
+      io.to(`user_${userEmail}`).emit("latestData", payload);
+    }
 
-    // ✅ Respond once
+    // 9️⃣ Respond
     res.json({ success: true, message: "Latest data updated", latest: payload });
 
   } catch (err) {
-    console.error("❌ /api/device/:id/latest Error:", err.message);
+    console.error("❌ /api/device/:id/latest Error:", err);
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "Internal server error", details: err.message });
     }
   }
 });
