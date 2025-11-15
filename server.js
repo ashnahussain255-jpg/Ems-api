@@ -701,7 +701,7 @@ const deviceSchema = new mongoose.Schema({
     voltage: Number,
     current: Number
 }
-units: { type: String, default: "V/A" },
+units: Strings
     type: String,
     ratedPower: Number,
   latestUnits: { type: Number, default: 0 },
