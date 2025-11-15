@@ -27,7 +27,14 @@ const io = new Server(server, {
 
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
+    
+   // Optimization screen room join
+    socket.on("join_opt", ({ userEmail }) => {
+        socket.join(`user_${userEmail}_opt`);
+        console.log(`User joined optimization room: ${userEmail}`);
+    });
 
+})
     socket.on("join", ({ userEmail }) => {
         if (userEmail) {
             socket.join(`user_${userEmail}_alerts`);
@@ -911,8 +918,8 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     const device = await Device.findOne({ id: deviceId, userEmail });
     if (!device) return res.status(404).json({ error: "Device not found" });
 
-    // Update latest units and timestamp
     const latestTimestamp = timestamp ? new Date(timestamp) : new Date();
+
     device.latestUnits = units;
     device.latestTimestamp = latestTimestamp;
     await device.save();
@@ -920,16 +927,16 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     const payload = {
       deviceId: device.id,
       name: device.name,
-      units: parseFloat(units) || 0, // numeric for meter
+      units: parseFloat(units) || 0,
       timestamp: latestTimestamp
     };
 
-    // Emit to optimization screen
-    io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
+    // Send to optimization screen
+    io.to(`user_${userEmail}_opt`).emit("opt-latest", payload);
 
-    // Emit alert if units >= 200
+    // High usage alert
     if (payload.units >= 200) {
-      io.to(`user_${userEmail}_opt`).emit('alert', {
+      io.to(`user_${userEmail}_opt`).emit("alert", {
         userEmail,
         message: `⚠️ High energy consumption: ${payload.units} units`
       });
@@ -938,7 +945,7 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     res.json({ success: true, device: payload });
 
   } catch (err) {
-    console.error("❌ /api/device/:id/opt-latest Error:", err.message);
+    console.error("❌ /opt-latest Error:", err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
