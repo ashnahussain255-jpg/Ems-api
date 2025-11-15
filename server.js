@@ -772,32 +772,47 @@ app.post("/api/device/:id/toggle", async (req, res) => {
     }
 });
 
-// 6️⃣ Update latest units/voltage/current
+//// 6️⃣ Update latest units/voltage/current (Safe version)
 app.post("/api/device/:id/latest", async (req, res) => {
+  try {
     const { id } = req.params;
-    const { deviceId,units, voltage, current } = req.body;
+    const { deviceId, units, voltage, current, userEmail } = req.body;
 
-    try {
-        
-
-       const device = await Device.findOne({ id, userEmail: req.body.userEmail });
-if (!device) return res.status(404).json({ error: "Device not found" });
-
-device.latest = { deviceId, units, voltage, current };
-device.datalog.push({ deviceId, units, voltage, current, timestamp: new Date() });
-await device.save();
-
-io.to(`user_${device.userEmail}`).emit("latestData", { id, deviceId, units, voltage, current });
-
-res.json({ message: "Latest data updated", latest: device.latest });
-
-        // Real-time emit for dashboard
-        io.to(`user_${device.userEmail}`).emit("latestData", { id,deviceId, units, voltage, current });
-
-        res.json({ message: "Latest data updated", latest: device.latest });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    if (!userEmail || !deviceId) {
+      return res.status(400).json({ error: "userEmail and deviceId required" });
     }
+
+    const device = await Device.findOne({ id, userEmail });
+    if (!device) return res.status(404).json({ error: "Device not found" });
+
+    // ✅ Update latest reading
+    const latestTimestamp = new Date();
+    device.latest = { deviceId, units, voltage, current };
+    device.latestTimestamp = latestTimestamp;
+
+    // ✅ Push to datalog (for history/graph)
+    device.datalog.push({ deviceId, units, voltage, current, timestamp: latestTimestamp });
+
+    // Optional: keep only last 100 entries to prevent DB bloating
+    if (device.datalog.length > 100) {
+      device.datalog = device.datalog.slice(-100);
+    }
+
+    await device.save();
+
+    // ✅ Emit real-time update to Socket.IO room
+    const payload = { id, deviceId, units, voltage, current, timestamp: latestTimestamp };
+    io.to(`user_${userEmail}`).emit("latestData", payload);
+
+    // ✅ Respond once
+    res.json({ success: true, message: "Latest data updated", latest: payload });
+
+  } catch (err) {
+    console.error("❌ /api/device/:id/latest Error:", err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
+  }
 });
 
 // API to get user profile
@@ -855,38 +870,45 @@ app.get('/api/onDevices', async (req, res) => {
     }
 });
 // 1️⃣ Optimization screen latest units only
+// Update optimization latest units (Safe & real-time)
 app.post('/api/device/:id/opt-latest', async (req, res) => {
   try {
     const deviceId = req.params.id;
     const { units, userEmail, timestamp } = req.body;
-    if (!units || !userEmail) return res.status(400).json({ error: 'units and userEmail required' });
 
-  const device = await Device.findOne({ id: deviceId, userEmail });
-if (!device) return res.status(404).json({ error: "Device not found" });
+    if (!units || !userEmail) {
+      return res.status(400).json({ error: 'units and userEmail required' });
+    }
 
-device.latestUnits = units;
-device.latestTimestamp = timestamp ? new Date(timestamp) : new Date();
-await device.save();
+    const device = await Device.findOne({ id: deviceId, userEmail });
+    if (!device) return res.status(404).json({ error: "Device not found" });
 
-const payload = {
+    // ✅ Update latest units and timestamp
+    const latestTimestamp = timestamp ? new Date(timestamp) : new Date();
+    device.latestUnits = units;
+    device.latestTimestamp = latestTimestamp;
+
+    await device.save();
+
+    // ✅ Payload for socket
+    const payload = {
       deviceId: device.id,
       name: device.name,
       units: device.latestUnits,
       timestamp: device.latestTimestamp
     };
 
-io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
-res.json({ success: true, device: payload });
-
-    
-
-    // Emit to sockets for optimization screen
+    // ✅ Emit to sockets for optimization screen
     io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
 
+    // ✅ Respond once
     res.json({ success: true, device: payload });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("❌ /api/device/:id/opt-latest Error:", err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 
