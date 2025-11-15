@@ -774,7 +774,7 @@ app.post("/api/device/:id/toggle", async (req, res) => {
 app.post("/api/device/:id/latest", async (req, res) => {
   try {
     const { id } = req.params;
-    let { deviceId, , voltage, current, userEmail } = req.body;
+    let { deviceId,  voltage, current, userEmail } = req.body;
 
     // 1️⃣ Validate required fields
     if (!userEmail || !deviceId) {
