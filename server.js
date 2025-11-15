@@ -782,7 +782,7 @@ app.post("/api/device/:id/latest", async (req, res) => {
         if (!device) return res.status(404).json({ error: "Device not found" });
 
         device.latest = { deviceId,units, voltage, current }; // current bhi save
-        device.datalog.push({ ,deviceId,units, voltage, current, timestamp: new Date() });
+        device.datalog.push({deviceId,units, voltage, current, timestamp: new Date() });
         await device.save();
 
         // Real-time emit for dashboard
