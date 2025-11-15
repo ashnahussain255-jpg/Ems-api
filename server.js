@@ -882,7 +882,7 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-const mongoose = require("mongoose");
+
 
 const readingSchema = new mongoose.Schema({
     userId: { type: String, required: true },
