@@ -868,17 +868,17 @@ device.latestUnits = units;
 device.latestTimestamp = timestamp ? new Date(timestamp) : new Date();
 await device.save();
 
-
-
-io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
-res.json({ success: true, device: payload });
-
-    const payload = {
+const payload = {
       deviceId: device.id,
       name: device.name,
       units: device.latestUnits,
       timestamp: device.latestTimestamp
     };
+
+io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
+res.json({ success: true, device: payload });
+
+    
 
     // Emit to sockets for optimization screen
     io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
