@@ -789,58 +789,60 @@ app.post("/api/device/:id/toggle", async (req, res) => {
 app.post("/api/device/:id/latest", async (req, res) => {
   try {
     const { id } = req.params;
-    let { deviceId,  voltage, current, userEmail } = req.body;
+    let { deviceId, voltage, current, userEmail } = req.body;
 
-    // 1️⃣ Validate required fields
+    // Validate required fields
     if (!userEmail || !deviceId) {
       return res.status(400).json({ error: "userEmail and deviceId are required" });
     }
 
-    // 2️⃣ Validate numeric values
+    // Ensure numeric values
     voltage = parseFloat(voltage);
     current = parseFloat(current);
     if (isNaN(voltage) || isNaN(current)) {
       return res.status(400).json({ error: "Voltage and Current must be numeric" });
     }
 
-    // 3️⃣ Find device
+    // Find device
     const device = await Device.findOne({ id, userEmail });
     if (!device) return res.status(404).json({ error: "Device not found" });
 
-    // 4️⃣ Ensure datalog array exists
     if (!Array.isArray(device.datalog)) device.datalog = [];
 
-    // 5️⃣ Update latest reading
     const latestTimestamp = new Date();
-    device.latest = { deviceId,  voltage, current };
+
+    // Update latest with deviceId + units
+    device.latest = {
+      deviceId,              // <-- now included
+      voltage,
+      current,
+      units: device.latestUnits || "V/A"
+    };
     device.latestTimestamp = latestTimestamp;
 
-    // 6️⃣ Push to datalog (keep last 100 entries)
-    device.datalog.push({ deviceId,  voltage, current, timestamp: latestTimestamp });
-    if (device.datalog.length > 100) {
-      device.datalog = device.datalog.slice(-100);
-    }
+    // Push to datalog
+    device.datalog.push({
+      deviceId,
+      voltage,
+      current,
+      units: device.latestUnits || "V/A",
+      timestamp: latestTimestamp
+    });
+    if (device.datalog.length > 100) device.datalog = device.datalog.slice(-100);
 
-    // 7️⃣ Save device safely
+    // Save
     await device.save();
 
-    // 8️⃣ Emit real-time update safely
-    const payload = { id, deviceId, voltage, current, timestamp: latestTimestamp };
-    if (io) {
-      io.to(`user_${userEmail}`).emit("latestData", payload);
-    }
+    // Emit real-time update
+    const payload = { deviceId, voltage, current, units: device.latest.units, timestamp: latestTimestamp };
+    if (io) io.to(`user_${userEmail}`).emit("latestData", payload);
 
-    // 9️⃣ Respond
     res.json({ success: true, message: "Latest data updated", latest: payload });
-
   } catch (err) {
     console.error("❌ /api/device/:id/latest Error:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Internal server error", details: err.message });
-    }
+    if (!res.headersSent) res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });
-
 // API to get user profile
 app.get('/api/userProfile', async (req, res) => {
     const email = req.query.email;
