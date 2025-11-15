@@ -778,8 +778,7 @@ app.post("/api/device/:id/latest", async (req, res) => {
     const { deviceId,units, voltage, current } = req.body;
 
     try {
-        const device = await Device.findOne({ id });
-        if (!device) return res.status(404).json({ error: "Device not found" });
+        
 
        const device = await Device.findOne({ id, userEmail: req.body.userEmail });
 if (!device) return res.status(404).json({ error: "Device not found" });
