@@ -911,32 +911,35 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     const device = await Device.findOne({ id: deviceId, userEmail });
     if (!device) return res.status(404).json({ error: "Device not found" });
 
-    // ✅ Update latest units and timestamp
+    // Update latest units and timestamp
     const latestTimestamp = timestamp ? new Date(timestamp) : new Date();
     device.latestUnits = units;
     device.latestTimestamp = latestTimestamp;
-
     await device.save();
 
-    // ✅ Payload for socket
     const payload = {
       deviceId: device.id,
       name: device.name,
-      units: device.latestUnits,
-      timestamp: device.latestTimestamp
+      units: parseFloat(units) || 0, // numeric for meter
+      timestamp: latestTimestamp
     };
 
-    // ✅ Emit to sockets for optimization screen
+    // Emit to optimization screen
     io.to(`user_${userEmail}_opt`).emit('opt-latest', payload);
 
-    // ✅ Respond once
+    // Emit alert if units >= 200
+    if (payload.units >= 200) {
+      io.to(`user_${userEmail}_opt`).emit('alert', {
+        userEmail,
+        message: `⚠️ High energy consumption: ${payload.units} units`
+      });
+    }
+
     res.json({ success: true, device: payload });
 
   } catch (err) {
     console.error("❌ /api/device/:id/opt-latest Error:", err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
-    }
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 
