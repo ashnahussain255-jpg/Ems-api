@@ -775,18 +775,18 @@ app.post("/api/device/:id/toggle", async (req, res) => {
 // 6️⃣ Update latest units/voltage/current
 app.post("/api/device/:id/latest", async (req, res) => {
     const { id } = req.params;
-    const { units, voltage, current } = req.body;
+    const { deviceId,units, voltage, current } = req.body;
 
     try {
         const device = await Device.findOne({ id });
         if (!device) return res.status(404).json({ error: "Device not found" });
 
-        device.latest = { units, voltage, current }; // current bhi save
-        device.datalog.push({ units, voltage, current, timestamp: new Date() });
+        device.latest = { deviceId,units, voltage, current }; // current bhi save
+        device.datalog.push({ ,deviceId,units, voltage, current, timestamp: new Date() });
         await device.save();
 
         // Real-time emit for dashboard
-        io.to(`user_${device.userEmail}`).emit("latestData", { id, units, voltage, current });
+        io.to(`user_${device.userEmail}`).emit("latestData", { id,deviceId, units, voltage, current });
 
         res.json({ message: "Latest data updated", latest: device.latest });
     } catch (err) {
