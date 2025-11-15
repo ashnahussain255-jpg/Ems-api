@@ -688,24 +688,35 @@ dbRef.on("child_added", (userSnap) => {
   });
 });
 const deviceSchema = new mongoose.Schema({
- userEmail: { type: String, required: true },
- id: { type: String, required: true, unique: true },
- name: { type: String, required: true },
-    image: { type: String, required: true },
- voltage: Number,
- current: Number,
- isOn: { type: Boolean, default: false },
-latest: {
-    units: { type: String, default: "V/A" }, // units ke liye String
+  userEmail: { type: String, required: true },
+  id: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  image: { type: String, required: true },
+  voltage: Number,
+  current: Number,
+  isOn: { type: Boolean, default: false },
+
+  latest: {
+    units: { type: String, default: "V/A" },
     voltage: Number,
     current: Number
-},
-datalog: [{ { type: String, default: "V/A" },, voltage: Number, timestamp: Date }],
- type: String,
+  },
+
+  // datalog array of objects
+  datalog: [
+    {
+      units: { type: String, default: "V/A" },
+      voltage: Number,
+      timestamp: Date
+    }
+  ],
+
+  type: String,
   ratedPower: Number,
-latestUnits: { type: String, default: "V/A" },
- latestTimestamp: Date,
+  latestUnits: { type: String, default: "V/A" },
+  latestTimestamp: Date,
 });
+
 const Device = mongoose.model("Device", deviceSchema);
 // 1️⃣ Get all devices of a user
 app.get("/api/devices/:userEmail", async (req, res) => {
