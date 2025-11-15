@@ -695,8 +695,8 @@ const deviceSchema = new mongoose.Schema({
     voltage: Number,
     current: Number,
     isOn: { type: Boolean, default: false },
-    latest: { units: Number, voltage: Number },
-    datalog: [{ units: Number, voltage: Number, timestamp: Date }],
+    latest: { units: { type: String, default: "V/A" }, voltage: Number, current: Number },
+datalog: [{ units: { type: String, default: "V/A" }, voltage: Number, current: Number, timestamp: Date }]
     type: String,
     ratedPower: Number,
   latestUnits: { type: Number, default: 0 },
