@@ -882,6 +882,17 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+const mongoose = require("mongoose");
+
+const readingSchema = new mongoose.Schema({
+    userId: { type: String, required: true },
+    deviceId: { type: String, required: true },
+    voltage: { type: Number, required: true },
+    current: { type: Number, required: true },
+ 
+});
+
+const Reading = mongoose.model("Reading", readingSchema);
 
 app.post("/api/reading", async (req, res) => {
   const { userId, deviceId, voltage, current } = req.body;
