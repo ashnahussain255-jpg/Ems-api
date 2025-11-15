@@ -883,7 +883,7 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
   }
 });
 
-app.post("/api/data", async (req, res) => {
+app.post("/api/reading", async (req, res) => {
   const { userId, deviceId, voltage, current } = req.body;
   const newReading = new Reading({ userId, deviceId, voltage, current });
   await newReading.save();
