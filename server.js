@@ -695,8 +695,9 @@ const deviceSchema = new mongoose.Schema({
     voltage: Number,
     current: Number,
     isOn: { type: Boolean, default: false },
+     units: { type: String, default: "V/A" },
  latest: {
-    units: { type: String, default: "V/A" },
+   
     voltage: Number,
     current: Number
 }
