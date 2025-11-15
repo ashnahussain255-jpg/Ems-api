@@ -774,7 +774,7 @@ app.post("/api/device/:id/toggle", async (req, res) => {
 app.post("/api/device/:id/latest", async (req, res) => {
   try {
     const { id } = req.params;
-    let { deviceId, units, voltage, current, userEmail } = req.body;
+    let { deviceId, , voltage, current, userEmail } = req.body;
 
     // 1️⃣ Validate required fields
     if (!userEmail || !deviceId) {
@@ -797,11 +797,11 @@ app.post("/api/device/:id/latest", async (req, res) => {
 
     // 5️⃣ Update latest reading
     const latestTimestamp = new Date();
-    device.latest = { deviceId, units, voltage, current };
+    device.latest = { deviceId,  voltage, current };
     device.latestTimestamp = latestTimestamp;
 
     // 6️⃣ Push to datalog (keep last 100 entries)
-    device.datalog.push({ deviceId, units, voltage, current, timestamp: latestTimestamp });
+    device.datalog.push({ deviceId,  voltage, current, timestamp: latestTimestamp });
     if (device.datalog.length > 100) {
       device.datalog = device.datalog.slice(-100);
     }
@@ -810,7 +810,7 @@ app.post("/api/device/:id/latest", async (req, res) => {
     await device.save();
 
     // 8️⃣ Emit real-time update safely
-    const payload = { id, deviceId, units, voltage, current, timestamp: latestTimestamp };
+    const payload = { id, deviceId, voltage, current, timestamp: latestTimestamp };
     if (io) {
       io.to(`user_${userEmail}`).emit("latestData", payload);
     }
