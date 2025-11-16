@@ -27,7 +27,13 @@ const io = new Server(server, {
 
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
-    
+    // Socket room join for device updates
+socket.on("joinDevices", ({ userEmail }) => {
+    if (userEmail) {
+        socket.join(`user_${userEmail}`)
+        console.log(`Socket ${socket.id} joined device room user_${userEmail}`);
+    }
+});
     // Optimization screen room join
     socket.on("join_opt", ({ userEmail }) => {
         socket.join(`user_${userEmail}_opt`);
