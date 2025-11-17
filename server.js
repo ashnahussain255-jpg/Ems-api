@@ -936,41 +936,63 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
       return res.status(400).json({ error: 'units and userEmail required' });
     }
 
+    // 1️⃣ Update device latestUnits
     const device = await Device.findOne({ id: deviceId, userEmail });
     if (!device) return res.status(404).json({ error: "Device not found" });
 
     const latestTimestamp = timestamp ? new Date(timestamp) : new Date();
-
-    device.latestUnits = units;
+    device.latestUnits = parseFloat(units) || 0;
     device.latestTimestamp = latestTimestamp;
     await device.save();
 
-    const payload = {
-      deviceId: device.id,
-      name: device.name,
-      units: parseFloat(units) || 0,
+    // 2️⃣ Fetch all devices of this user to calculate total units
+    const allDevices = await Device.find({ userEmail });
+
+    // Sum all latestUnits
+    let totalUnits = 0;
+    let highestDevice = null;
+    let maxUnits = 0;
+
+    allDevices.forEach(d => {
+      const dUnits = parseFloat(d.latestUnits) || 0;
+      totalUnits += dUnits;
+
+      if (dUnits > maxUnits) {
+        maxUnits = dUnits;
+        highestDevice = d;
+      }
+    });
+
+    // 3️⃣ Emit total units for optimization meter
+    const totalPayload = {
+      totalUnits,
       timestamp: latestTimestamp
     };
+    io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
 
-    // Send to optimization screen
-    io.to(`user_${userEmail}_opt`).emit("opt-latest", payload);
-
-    // High usage alert
-    if (payload.units >= 200) {
+    // 4️⃣ Check if total units cross threshold (200) and emit alert with device info
+    if (totalUnits >= 200 && highestDevice) {
       io.to(`user_${userEmail}_opt`).emit("alert", {
         userEmail,
-        message: `⚠️ High energy consumption: ${payload.units} units`
+        message: `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`
       });
     }
 
-    res.json({ success: true, device: payload });
+    // 5️⃣ Respond with updated device info
+    const devicePayload = {
+      deviceId: device.id,
+      name: device.name,
+      units: device.latestUnits,
+      timestamp: latestTimestamp
+    };
+
+    res.json({ success: true, device: devicePayload, totalUnits });
 
   } catch (err) {
     console.error("❌ /opt-latest Error:", err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
-
 
 const readingSchema = new mongoose.Schema({
     userId: { type: String, required: true },
