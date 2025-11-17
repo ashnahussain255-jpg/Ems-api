@@ -971,12 +971,10 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
 
     // 4️⃣ Check if total units cross threshold (200) and emit alert with device info
-    if (totalUnits >= 200 && highestDevice) {
-      io.to(`user_${userEmail}_opt`).emit("alert", {
-        userEmail,
-        message: `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`
-      });
-        const tips = [
+   if (totalUnits >= 200 && highestDevice) {
+    const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
+
+    const tips = [
         `Consider turning off ${highestDevice.name} to save energy`,
         "Avoid using multiple high-power devices simultaneously",
         "Unplug unused devices to save standby power"
@@ -986,10 +984,9 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     io.to(`user_${userEmail}_opt`).emit("alert", {
         userEmail,
         message: alertMessage,
-        tips // <-- send tips along with alert
+        tips // send tips along with alert
     });
-
-    }
+}
 
     // 5️⃣ Respond with updated device info
     const devicePayload = {
