@@ -976,6 +976,19 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
         userEmail,
         message: `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`
       });
+        const tips = [
+        `Consider turning off ${highestDevice.name} to save energy`,
+        "Avoid using multiple high-power devices simultaneously",
+        "Unplug unused devices to save standby power"
+    ];
+
+    // Emit alert + tips
+    io.to(`user_${userEmail}_opt`).emit("alert", {
+        userEmail,
+        message: alertMessage,
+        tips // <-- send tips along with alert
+    });
+
     }
 
     // 5️⃣ Respond with updated device info
