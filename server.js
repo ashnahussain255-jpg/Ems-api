@@ -797,7 +797,22 @@ app.post("/api/device/:id/toggle", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+app.get("/api/device/:id/status", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const device = await Device.findOne({ id });
 
+        if (!device) return res.status(404).json({ error: "Device not found" });
+
+        res.json({
+            id: device.id,
+            isOn: device.isOn
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 //// ✅ Safe & Robust Update latest units/voltage/current
 app.post("/api/device/:id/latest", async (req, res) => {
   try {
