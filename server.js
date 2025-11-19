@@ -8,10 +8,13 @@ const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
+const Device = require('../models/device');
+const router = express.Router();
 // ===================== APP + SERVER =====================
 const app = express();
 const server = http.createServer(app);
-
+app.use('/api/devices',deviceRoutes);
+app.use('/api/alerts',alertRoutes);
 // ===================== MIDDLEWARE =====================
 app.use(express.json());
 app.use(cors({
@@ -708,7 +711,12 @@ const deviceSchema = new mongoose.Schema({
   voltage: Number,
   current: Number,
   isOn: { type: Boolean, default: false },
+hardwareId: { type: String, required: true, unique: true },
 
+    // Only one hardware password for the ESP32
+    hardwarePassword: { type: String, required: true, default: "1234" },
+
+    connected: { type: Boolean, default: false },
   latest: {
     units: { type: String, default: "V/A" },
     voltage: Number,
@@ -1025,7 +1033,91 @@ app.post("/api/reading", async (req, res) => {
   res.status(201).send({ message: "Reading saved", reading: newReading });
 });
 
+router.post('/:hardwareId/verify-password', async (req, res) => {
+    const { password } = req.body;
 
+    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+    if (!device) return res.status(404).json({ msg: "Device not found", connected: false });
+
+    if (password === device.hardwarePassword) {
+        device.connected = true;
+        await device.save();
+        return res.json({ connected: true, msg: "Password verified" });
+    }
+
+    device.connected = false;
+    await device.save();
+    res.json({ connected: false, msg: "Wrong password" });
+});
+
+// ---------------------------
+// 2️⃣ ESP32 sends latest voltage/current
+// ---------------------------
+router.post('/:hardwareId/latest', async (req, res) => {
+    const { voltage, current } = req.body;
+
+    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+    if (!device) return res.status(404).json({ msg: "Device not found" });
+
+    // Only update real data IF connected
+    if (!device.connected) {
+        device.latest.voltage = 0;
+        device.latest.current = 0;
+        device.latest.timestamp = new Date();
+        await device.save();
+        return res.json({ msg: "Device not connected. Data ignored." });
+    }
+
+    // Save real sensor data
+    device.latest.voltage = voltage;
+    device.latest.current = current;
+    device.latest.timestamp = new Date();
+
+    await device.save();
+    res.json({ msg: "Latest updated" });
+});
+
+// ---------------------------
+// 3️⃣ ESP32 sends units
+// ---------------------------
+router.post('/:hardwareId/opt-latest', async (req, res) => {
+    const { units } = req.body;
+
+    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+    if (!device) return res.status(404).json({ msg: "Device not found" });
+
+    if (!device.connected) {
+        device.latest.units = 0;
+        await device.save();
+        return res.json({ msg: "Not connected. Units ignored." });
+    }
+
+    device.latest.units = units;
+    device.latest.timestamp = new Date();
+
+    await device.save();
+    res.json({ msg: "Units updated" });
+});
+
+// ---------------------------
+// 4️⃣ Admin can change hardware password
+// ---------------------------
+router.post('/:hardwareId/change-password', async (req, res) => {
+    const { newPassword, adminKey } = req.body;
+
+    if (adminKey !== process.env.ADMIN_KEY)
+        return res.status(403).json({ msg: "Forbidden - Admin only" });
+
+    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+    if (!device) return res.status(404).json({ msg: "Device not found" });
+
+    device.hardwarePassword = newPassword;
+    await device.save();
+
+    res.json({ msg: "Hardware password updated successfully" });
+});
+
+module.exports = router;
 
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
