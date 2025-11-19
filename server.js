@@ -9,7 +9,7 @@ const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
 const Device = require('../models/device');
-const router = express.Router();
+
 // ===================== APP + SERVER =====================
 const app = express();
 const server = http.createServer(app);
