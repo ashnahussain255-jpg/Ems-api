@@ -8,8 +8,9 @@ const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
-const deviceRoutes = require('./routes/deviceRoutes'); // path check karein
 
+const deviceRoutes = require('./routes/deviceRoutes'); 
+const alertRoutes = require('./routes/alertRoutes'); 
 
 
 
@@ -63,7 +64,8 @@ socket.on("joinDevices", ({ userEmail }) => {
     socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
 });
 
-
+app.use('/api/devices', deviceRoutes(io));
+app.use('/api/alerts', alertRoutes(io));
 // ===================== ALERT MODEL =====================
 const alertSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
