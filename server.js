@@ -8,6 +8,8 @@ const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
+const deviceRoutes = require('./routes/deviceRoutes'); // path check karein
+
 
 
 
