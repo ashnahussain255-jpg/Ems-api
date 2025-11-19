@@ -17,8 +17,7 @@ const alertRoutes = require('./routes/alertRoutes');
 // ===================== APP + SERVER =====================
 const app = express();
 const server = http.createServer(app);
-app.use('/api/devices',deviceRoutes);
-app.use('/api/alerts',alertRoutes);
+
 // ===================== MIDDLEWARE =====================
 app.use(express.json());
 app.use(cors({
@@ -64,8 +63,7 @@ socket.on("joinDevices", ({ userEmail }) => {
     socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
 });
 
-app.use('/api/devices', deviceRoutes(io));
-app.use('/api/alerts', alertRoutes(io));
+
 // ===================== ALERT MODEL =====================
 const alertSchema = new mongoose.Schema({
     userEmail: { type: String, required: true },
