@@ -8,6 +8,7 @@ const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
+app.use('/api/devices', deviceRoutes);
 
 
 // ===================== APP + SERVER =====================
