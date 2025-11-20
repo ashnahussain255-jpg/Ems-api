@@ -8,7 +8,7 @@ const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
-
+const Hardware = require("../models/Hardware");
 
 
 
@@ -712,12 +712,7 @@ const deviceSchema = new mongoose.Schema({
   voltage: Number,
   current: Number,
   isOn: { type: Boolean, default: false },
-hardwareId: { type: String, required: true, unique: true },
 
-    // Only one hardware password for the ESP32
-    hardwarePassword: { type: String, required: true, default: "1234" },
-
-    connected: { type: Boolean, default: false },
   latest: {
     units: { type: String, default: "V/A" },
     voltage: Number,
@@ -1034,89 +1029,93 @@ app.post("/api/reading", async (req, res) => {
   res.status(201).send({ message: "Reading saved", reading: newReading });
 });
 
-app.get("/device/all", async (req, res) => {
-  const devices = await Device.find({});
-  res.json({ success: true, devices });
+const mongoose = require("mongoose");
+
+const hardwareSchema = new mongoose.Schema({
+  hardwareId: { type: String, required: true, unique: true }, // unique hardware id
+  name: { type: String, required: true },
+  online: { type: Boolean, default: false }, // hardware status
+  adminPassword: { type: String, required: true }, // sirf admin change kar sake
+  lastUpdated: { type: Date, default: Date.now }
 });
-app.get("/device/:hardwareId/status", async (req, res) => {
-  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
 
-  if (!device) return res.json({ success: false, msg: "Not found" });
-
-  res.json({
-    success: true,
-    online: device.status === "ONLINE",
-    connected: device.connected
-  });
-});
-app.post("/device/:hardwareId/verify-password", async (req, res) => {
-  const { password } = req.body;
-
-  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-  if (!device)
-    return res.status(404).json({ connected: false, msg: "Device not found" });
-
-  if (password === device.hardwarePassword) {
-    device.connected = true;
-    await device.save();
-    return res.json({ connected: true, msg: "Password correct" });
+module.exports = mongoose.model("Hardware", hardwareSchema);
+router.get("/all", async (req, res) => {
+  try {
+    const hardwareList = await Hardware.find({}, { hardwareId: 1, name: 1, online: 1 });
+    res.json({ hardware: hardwareList });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  device.connected = false;
-  await device.save();
-  return res.json({ connected: false, msg: "Wrong password" });
 });
-app.post("/device/:hardwareId/latest", async (req, res) => {
-  const { voltage, current } = req.body;
 
-  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-  if (!device) return res.json({ msg: "Device not found" });
+// Get specific hardware status
+router.get("/:hardwareId/status", async (req, res) => {
+  try {
+    const { hardwareId } = req.params;
+    const hardware = await Hardware.findOne({ hardwareId });
+    if (!hardware) return res.status(404).json({ message: "Hardware not found" });
 
-  if (!device.connected) {
-    device.latest.voltage = 0;
-    device.latest.current = 0;
-    device.latest.timestamp = new Date();
-    await device.save();
-    return res.json({ msg: "Not connected → data ignored" });
+    res.json({ online: hardware.online });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  device.latest.voltage = voltage;
-  device.latest.current = current;
-  device.latest.timestamp = new Date();
-  await device.save();
-
-  res.json({ msg: "Data updated" });
 });
-app.post("/device/:hardwareId/opt-latest", async (req, res) => {
-  const { units } = req.body;
+router.post("/:hardwareId/connect", async (req, res) => {
+  try {
+    const { hardwareId } = req.params;
+    const { password } = req.body;
 
-  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-  if (!device) return res.json({ msg: "Device not found" });
+    const hardware = await Hardware.findOne({ hardwareId });
+    if (!hardware) return res.status(404).json({ connected: false });
 
-  if (!device.connected) {
-    device.latest.units = 0;
-    await device.save();
-    return res.json({ msg: "Not connected → units ignored" });
+    if (password === hardware.adminPassword && hardware.online) {
+      // Password correct & hardware online → allow connection
+      res.json({ connected: true, message: "Connected, now you can fetch data" });
+    } else {
+      res.json({ connected: false, message: "Wrong password or hardware offline" });
+    }
+  } catch (err) {
+    res.status(500).json({ connected: false, message: err.message });
   }
-
-  device.latest.units = units;
-  device.latest.timestamp = new Date();
-  await device.save();
-
-  res.json({ msg: "Units updated" });
 });
-app.post("/admin/device/:hardwareId/update-password", async (req, res) => {
-  const { newPassword } = req.body;
+router.post("/:hardwareId/connect", async (req, res) => {
+  try {
+    const { hardwareId } = req.params;
+    const { password } = req.body;
 
-  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-  if (!device) return res.json({ msg: "Device not found" });
+    const hardware = await Hardware.findOne({ hardwareId });
+    if (!hardware) return res.status(404).json({ connected: false });
 
-  device.hardwarePassword = newPassword;
-  await device.save();
-
-  res.json({ msg: "Password updated by admin" });
+    if (password === hardware.adminPassword && hardware.online) {
+      // Password correct & hardware online → allow connection
+      res.json({ connected: true, message: "Connected, now you can fetch data" });
+    } else {
+      res.json({ connected: false, message: "Wrong password or hardware offline" });
+    }
+  } catch (err) {
+    res.status(500).json({ connected: false, message: err.message });
+  }
 });
+router.post("/:hardwareId/update-password", async (req, res) => {
+  try {
+    const { hardwareId } = req.params;
+    const { newPassword, adminKey } = req.body;
 
+    // Admin authentication
+    if (adminKey !== process.env.ADMIN_KEY) return res.status(403).json({ message: "Forbidden" });
+
+    const hardware = await Hardware.findOne({ hardwareId });
+    if (!hardware) return res.status(404).json({ message: "Hardware not found" });
+
+    hardware.adminPassword = newPassword;
+    await hardware.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
