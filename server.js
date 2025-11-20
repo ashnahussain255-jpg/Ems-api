@@ -9,8 +9,6 @@ const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
 
-const deviceRoutes = require('./routes/deviceRoutes'); 
-const alertRoutes = require('./routes/alertRoutes'); 
 
 
 
