@@ -1034,91 +1034,88 @@ app.post("/api/reading", async (req, res) => {
   res.status(201).send({ message: "Reading saved", reading: newReading });
 });
 
-router.post('/:hardwareId/verify-password', async (req, res) => {
-    const { password } = req.body;
-
-    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-    if (!device) return res.status(404).json({ msg: "Device not found", connected: false });
-
-    if (password === device.hardwarePassword) {
-        device.connected = true;
-        await device.save();
-        return res.json({ connected: true, msg: "Password verified" });
-    }
-
-    device.connected = false;
-    await device.save();
-    res.json({ connected: false, msg: "Wrong password" });
+app.get("/device/all", async (req, res) => {
+  const devices = await Device.find({});
+  res.json({ success: true, devices });
 });
+app.get("/device/:hardwareId/status", async (req, res) => {
+  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
 
-// ---------------------------
-// 2️⃣ ESP32 sends latest voltage/current
-// ---------------------------
-router.post('/:hardwareId/latest', async (req, res) => {
-    const { voltage, current } = req.body;
+  if (!device) return res.json({ success: false, msg: "Not found" });
 
-    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-    if (!device) return res.status(404).json({ msg: "Device not found" });
+  res.json({
+    success: true,
+    online: device.status === "ONLINE",
+    connected: device.connected
+  });
+});
+app.post("/device/:hardwareId/verify-password", async (req, res) => {
+  const { password } = req.body;
 
-    // Only update real data IF connected
-    if (!device.connected) {
-        device.latest.voltage = 0;
-        device.latest.current = 0;
-        device.latest.timestamp = new Date();
-        await device.save();
-        return res.json({ msg: "Device not connected. Data ignored." });
-    }
+  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+  if (!device)
+    return res.status(404).json({ connected: false, msg: "Device not found" });
 
-    // Save real sensor data
-    device.latest.voltage = voltage;
-    device.latest.current = current;
+  if (password === device.hardwarePassword) {
+    device.connected = true;
+    await device.save();
+    return res.json({ connected: true, msg: "Password correct" });
+  }
+
+  device.connected = false;
+  await device.save();
+  return res.json({ connected: false, msg: "Wrong password" });
+});
+app.post("/device/:hardwareId/latest", async (req, res) => {
+  const { voltage, current } = req.body;
+
+  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+  if (!device) return res.json({ msg: "Device not found" });
+
+  if (!device.connected) {
+    device.latest.voltage = 0;
+    device.latest.current = 0;
     device.latest.timestamp = new Date();
-
     await device.save();
-    res.json({ msg: "Latest updated" });
+    return res.json({ msg: "Not connected → data ignored" });
+  }
+
+  device.latest.voltage = voltage;
+  device.latest.current = current;
+  device.latest.timestamp = new Date();
+  await device.save();
+
+  res.json({ msg: "Data updated" });
 });
+app.post("/device/:hardwareId/opt-latest", async (req, res) => {
+  const { units } = req.body;
 
-// ---------------------------
-// 3️⃣ ESP32 sends units
-// ---------------------------
-router.post('/:hardwareId/opt-latest', async (req, res) => {
-    const { units } = req.body;
+  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+  if (!device) return res.json({ msg: "Device not found" });
 
-    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-    if (!device) return res.status(404).json({ msg: "Device not found" });
-
-    if (!device.connected) {
-        device.latest.units = 0;
-        await device.save();
-        return res.json({ msg: "Not connected. Units ignored." });
-    }
-
-    device.latest.units = units;
-    device.latest.timestamp = new Date();
-
+  if (!device.connected) {
+    device.latest.units = 0;
     await device.save();
-    res.json({ msg: "Units updated" });
+    return res.json({ msg: "Not connected → units ignored" });
+  }
+
+  device.latest.units = units;
+  device.latest.timestamp = new Date();
+  await device.save();
+
+  res.json({ msg: "Units updated" });
 });
+app.post("/admin/device/:hardwareId/update-password", async (req, res) => {
+  const { newPassword } = req.body;
 
-// ---------------------------
-// 4️⃣ Admin can change hardware password
-// ---------------------------
-router.post('/:hardwareId/change-password', async (req, res) => {
-    const { newPassword, adminKey } = req.body;
+  const device = await Device.findOne({ hardwareId: req.params.hardwareId });
+  if (!device) return res.json({ msg: "Device not found" });
 
-    if (adminKey !== process.env.ADMIN_KEY)
-        return res.status(403).json({ msg: "Forbidden - Admin only" });
+  device.hardwarePassword = newPassword;
+  await device.save();
 
-    const device = await Device.findOne({ hardwareId: req.params.hardwareId });
-    if (!device) return res.status(404).json({ msg: "Device not found" });
-
-    device.hardwarePassword = newPassword;
-    await device.save();
-
-    res.json({ msg: "Hardware password updated successfully" });
+  res.json({ msg: "Password updated by admin" });
 });
-
-module.exports = router;
 
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
