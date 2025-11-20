@@ -1025,7 +1025,57 @@ app.post("/api/reading", async (req, res) => {
   res.status(201).send({ message: "Reading saved", reading: newReading });
 });
 
+const hardwareSchema = new mongoose.Schema({
+  name: { type: String, required: true },          // Hardware name, e.g., "ESP32-1"
+  status: { type: Boolean, default: false },       // false = OFF, true = ON
+  password: { type: String, required: true },     // Connect password
+  data: { type: Number, default: 0 },             // Real-time data (0 by default)
+});
+    app.post('/api/hardware/connect', async (req, res) => {
+  const { name, password } = req.body;
 
+  const hw = await Hardware.findOne({ name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  if (hw.password !== password) {
+    return res.status(401).json({ error: 'Wrong password' });
+  }
+
+  // Correct password → hardware ON
+  hw.status = true;
+  // Data reset ya zero to indicate not connected pehle, ab app connect ho gaya
+  hw.data = 0; // ya latest initial value
+  await hw.save();
+
+  res.json({ message: 'Hardware connected', status: hw.status, data: hw.data });
+});
+    app.get('/api/hardware/:name/status', async (req, res) => {
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  // Agar hardware OFF hai → data 0
+  const dataToSend = hw.status ? hw.data : 0;
+
+  res.json({ status: hw.status, data: dataToSend });
+});
+    // ESP32 real-time data update (POST)
+app.post('/api/hardware/:name/update', async (req, res) => {
+  const { value } = req.body;  // example: voltage or current reading
+
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  if (!hw.status) {
+    return res.status(400).json({ error: 'Hardware not connected' });
+  }
+
+  hw.data = value;
+  await hw.save();
+
+  res.json({ message: 'Data updated', data: hw.data });
+});
+
+module.exports = mongoose.model('Hardware', hardwareSchema);
 
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
