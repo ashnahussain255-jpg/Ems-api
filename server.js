@@ -1027,93 +1027,60 @@ app.post("/api/reading", async (req, res) => {
 });
 
 
-
-// ---------------- Hardware Schema ----------------
 const hardwareSchema = new mongoose.Schema({
-    name: { type: String, required: true },          // Hardware name, e.g., "ESP32-1"
-    status: { type: Boolean, default: false },       // false = OFF, true = ON
-    password: { type: String, required: true },     // Connect password
-    data: { type: Number, default: 0 },             // Real-time data
+  name: { type: String, required: true },
+  status: { type: Boolean, default: false }, // false = not connected, true = connected
+  password: { type: String, required: true },
+  data: { type: Number, default: 0 },        // temporary storage for connected hardware
 });
-
 const Hardware = mongoose.model('Hardware', hardwareSchema);
 
-// ---------------- 1. List all hardware ----------------
-app.get('/api/hardware/all', async (req, res) => {
-    try {
-        const allHardware = await Hardware.find({}, 'name');
-        const names = allHardware.map(hw => hw.name);
-        res.json({ devices: names });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// ---------------- 2. Connect / Auto-register ----------------
+// Connect hardware
 app.post('/api/hardware/connect', async (req, res) => {
-    const { name, password } = req.body;
-    try {
-        let hw = await Hardware.findOne({ name });
+  const { name, password } = req.body;
+  let hw = await Hardware.findOne({ name });
 
-        if (!hw) {
-            // Auto-register if hardware doesn't exist
-            hw = new Hardware({ name, password, status: true, data: 0 });
-            await hw.save();
-            return res.json({ message: 'Hardware auto-registered and connected', status: hw.status, data: hw.data });
-        }
+  if (!hw) {
+    hw = new Hardware({ name, password, status: true, data: 0 });
+    await hw.save();
+    return res.json({ message: 'Hardware connected', status: true });
+  }
 
-        if (hw.password !== password) return res.status(401).json({ error: 'Wrong password' });
+  if (hw.password !== password) return res.status(401).json({ error: 'Wrong password' });
 
-        // Correct password → mark connected
-        hw.status = true;
-        hw.data = 0;
-        await hw.save();
-
-        res.json({ message: 'Hardware connected', status: hw.status, data: hw.data });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
+  hw.status = true;
+  await hw.save();
+  res.json({ message: 'Hardware connected', status: hw.status });
 });
 
-// ---------------- 3. Get hardware status ----------------
-app.get('/api/hardware/:name/status', async (req, res) => {
-    try {
-        const hw = await Hardware.findOne({ name: req.params.name });
-        if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+// Update device data (barrier check)
+app.post('/api/device/:id/update', async (req, res) => {
+  const { hardwareName, value } = req.body; // hardwareName is mandatory
+  const hw = await Hardware.findOne({ name: hardwareName });
 
-        res.json({ status: hw.status, data: hw.status ? hw.data : 0 });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
+  if (!hw || !hw.status) {
+    // Hardware not connected → block data
+    return res.status(400).json({ error: 'Hardware not connected. Data blocked.' });
+  }
+
+  // Hardware connected → normal device update
+  const device = await Device.findById(req.params.id);
+  device.data = value; // example
+  await device.save();
+  res.json({ message: 'Device data updated', data: device.data });
 });
 
-// ---------------- 4. Update hardware data ----------------
-app.post('/api/hardware/:name/update', async (req, res) => {
-    const { value } = req.body;
-    try {
-        const hw = await Hardware.findOne({ name: req.params.name });
-        if (!hw) return res.status(404).json({ error: 'Hardware not found' });
-        if (!hw.status) return res.status(400).json({ error: 'Hardware not connected' });
+// Fetch alerts (barrier check)
+app.get('/api/alerts/:userEmail', async (req, res) => {
+  const { hardwareName } = req.query;
+  const hw = await Hardware.findOne({ name: hardwareName });
 
-        hw.data = value;
-        await hw.save();
+  if (!hw || !hw.status) {
+    return res.status(400).json({ error: 'Hardware not connected. Alerts blocked.' });
+  }
 
-        res.json({ message: 'Data updated', data: hw.data });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// ---------------- 5. Get hardware password ----------------
-app.get('/api/hardware/:name/password', async (req, res) => {
-    try {
-        const hw = await Hardware.findOne({ name: req.params.name });
-        if (!hw) return res.status(404).json({ error: 'Hardware not found' });
-
-        res.json({ password: hw.password });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
+  const alerts = await Alert.find({ userEmail: req.params.userEmail });
+  res.json(alerts);
 });
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
