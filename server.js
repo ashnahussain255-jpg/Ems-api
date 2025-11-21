@@ -1147,15 +1147,7 @@ app.post('/api/hardware/:name/update', async (req, res) => {
 
   res.json({ message: 'Data updated', data: hw.data });
 });
-const hardwareSchema = new mongoose.Schema({
-  name: { type: String, required: true },          // Hardware name, e.g., "ESP32-1"
-  status: { type: Boolean, default: false },       // false = OFF, true = ON
-  password: { type: String, required: true },     // Connect password
-  data: { type: Number, default: 0 },             // Real-time data (0 by default)
-});
- 
-
-  app.post('/api/hardware/connect', async (req, res) => {
+app.post('/api/hardware/connect', async (req, res) => {
   const { name, password } = req.body;
 
   // Check if hardware exists
