@@ -1089,12 +1089,145 @@ app.post('/api/hardware/:name/update', async (req, res) => {
 
   res.json({ message: 'Data updated', data: hw.data });
 });
-app.get('/api/hardware/:name/password', async (req, res) => {
+const hardwareSchema = new mongoose.Schema({
+  name: { type: String, required: true },          // Hardware name, e.g., "ESP32-1"
+  status: { type: Boolean, default: false },       // false = OFF, true = ON
+  password: { type: String, required: true },     // Connect password
+  data: { type: Number, default: 0 },             // Real-time data (0 by default)
+});
+  const Hardware = mongoose.model('Hardware', hardwareSchema);
+
+  app.post('/api/hardware/connect', async (req, res) => {
+  const { name, password } = req.body;
+
+  // Check if hardware exists
+  let hw = await Hardware.findOne({ name });
+
+  if (!hw) {
+    // Agar exist nahi karta → automatically create kar do
+    hw = new Hardware({
+      name,
+      password,  // ESP32 jo bhej raha password
+      status: true, // abhi connected hai
+      data: 0
+    });
+    await hw.save();
+    return res.json({ message: 'Hardware auto-registered and connected', status: hw.status, data: hw.data });
+  }
+
+  // Agar exist karta hai → password check
+  if (hw.password !== password) {
+    return res.status(401).json({ error: 'Wrong password' });
+  }
+
+  // Correct password → mark connected
+  hw.status = true;
+  hw.data = 0;
+  await hw.save();
+
+  res.json({ message: 'Hardware connected', status: hw.status, data: hw.data });
+});
+    app.get('/api/hardware/:name/status', async (req, res) => {
   const hw = await Hardware.findOne({ name: req.params.name });
   if (!hw) return res.status(404).json({ error: 'Hardware not found' });
 
+  // Agar hardware OFF hai → data 0
+  const dataToSend = hw.status ? hw.data : 0;
+
+  res.json({ status: hw.status, data: dataToSend });
+});
+    // ESP32 real-time data update (POST)
+app.post('/api/hardware/:name/update', async (req, res) => {
+  const { value } = req.body;  // example: voltage or current reading
+
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  if (!hw.status) {
+    return res.status(400).json({ error: 'Hardware not connected' });
+  }
+
+  hw.data = value;
+  await hw.save();
+
+  res.json({ message: 'Data updated', data: hw.data });
+});
+const hardwareSchema = new mongoose.Schema({
+  name: { type: String, required: true },          // Hardware name, e.g., "ESP32-1"
+  status: { type: Boolean, default: false },       // false = OFF, true = ON
+  password: { type: String, required: true },     // Connect password
+  data: { type: Number, default: 0 },             // Real-time data (0 by default)
+});
+  const Hardware = mongoose.model('Hardware', hardwareSchema);
+
+  app.post('/api/hardware/connect', async (req, res) => {
+  const { name, password } = req.body;
+
+  // Check if hardware exists
+  let hw = await Hardware.findOne({ name });
+
+  if (!hw) {
+    // Agar exist nahi karta → automatically create kar do
+    hw = new Hardware({
+      name,
+      password,  // ESP32 jo bhej raha password
+      status: true, // abhi connected hai
+      data: 0
+    });
+    await hw.save();
+    return res.json({ message: 'Hardware auto-registered and connected', status: hw.status, data: hw.data });
+  }
+
+  // Agar exist karta hai → password check
+  if (hw.password !== password) {
+    return res.status(401).json({ error: 'Wrong password' });
+  }
+
+  // Correct password → mark connected
+  hw.status = true;
+  hw.data = 0;
+  await hw.save();
+
+  res.json({ message: 'Hardware connected', status: hw.status, data: hw.data });
+});
+    app.get('/api/hardware/:name/status', async (req, res) => {
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  // Agar hardware OFF hai → data 0
+  const dataToSend = hw.status ? hw.data : 0;
+
+  res.json({ status: hw.status, data: dataToSend });
+});
+    // ESP32 real-time data update (POST)
+app.post('/api/hardware/:name/update', async (req, res) => {
+  const { value } = req.body;  // example: voltage or current reading
+
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  if (!hw.status) {
+    return res.status(400).json({ error: 'Hardware not connected' });
+  }
+
+  hw.data = value;
+  await hw.save();
+
+  res.json({ message: 'Data updated', data: hw.data });
+});
+app.get('/api/hardware/:name/password', async (req, res) => {
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+    res.json ({password: hw.password});
+
 
 });
+
+
+
+
+
+
 
 
 
