@@ -1032,7 +1032,7 @@ const hardwareSchema = new mongoose.Schema({
   password: { type: String, required: true },     // Connect password
   data: { type: Number, default: 0 },             // Real-time data (0 by default)
 });
-  const HardwareSchema = mongoose.model('Hardware', hardwareSchema);
+  const Hardware = mongoose.model('Hardware', hardwareSchema);
 
     app.post('/api/hardware/connect', async (req, res) => {
   const { name, password } = req.body;
