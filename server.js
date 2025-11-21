@@ -1115,15 +1115,6 @@ app.get('/api/hardware/:name/password', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
-
-// ---------------- Start server ----------------
-const PORT = process.env.PORT || 3000;
-mongoose.connect('mongodb://localhost:27017/ems', { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => {
-        console.log('MongoDB connected');
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    })
-    .catch(err => console.error(err));
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
