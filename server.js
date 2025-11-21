@@ -1074,6 +1074,12 @@ app.post('/api/hardware/:name/update', async (req, res) => {
 
   res.json({ message: 'Data updated', data: hw.data });
 });
+app.get('/api/hardware/:name/password', async (req, res) => {
+  const hw = await Hardware.findOne({ name: req.params.name });
+  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+
+  res.json({ password: hw.password });
+});
 
 module.exports = mongoose.model('Hardware', hardwareSchema);
 
