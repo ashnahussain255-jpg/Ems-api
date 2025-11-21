@@ -8,7 +8,7 @@ const { Server } = require("socket.io");
 const admin = require("firebase-admin");
 const bcrypt = require("bcrypt");
 const axios = require("axios");
-const Hardware = require('./models/Hardware');
+
 // ===================== APP + SERVER =====================
 const app = express();
 const server = http.createServer(app);
@@ -1032,7 +1032,8 @@ const hardwareSchema = new mongoose.Schema({
   password: { type: String, required: true },     // Connect password
   data: { type: Number, default: 0 },             // Real-time data (0 by default)
 });
-module.exports = mongoose.model('Hardware', hardwareSchema)
+module.exports = mongoose.model('Hardware', hardwareSchema);
+
     app.post('/api/hardware/connect', async (req, res) => {
   const { name, password } = req.body;
 
@@ -1080,10 +1081,10 @@ app.get('/api/hardware/:name/password', async (req, res) => {
   const hw = await Hardware.findOne({ name: req.params.name });
   if (!hw) return res.status(404).json({ error: 'Hardware not found' });
 
-  res.json({ password: hw.password });
+
 });
 
-module.exports = Hardware;
+
 
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
