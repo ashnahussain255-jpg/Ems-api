@@ -1034,20 +1034,32 @@ const hardwareSchema = new mongoose.Schema({
 });
   const Hardware = mongoose.model('Hardware', hardwareSchema);
 
-    app.post('/api/hardware/connect', async (req, res) => {
+  app.post('/api/hardware/connect', async (req, res) => {
   const { name, password } = req.body;
 
-  const hw = await Hardware.findOne({ name });
-  if (!hw) return res.status(404).json({ error: 'Hardware not found' });
+  // Check if hardware exists
+  let hw = await Hardware.findOne({ name });
 
+  if (!hw) {
+    // Agar exist nahi karta → automatically create kar do
+    hw = new Hardware({
+      name,
+      password,  // ESP32 jo bhej raha password
+      status: true, // abhi connected hai
+      data: 0
+    });
+    await hw.save();
+    return res.json({ message: 'Hardware auto-registered and connected', status: hw.status, data: hw.data });
+  }
+
+  // Agar exist karta hai → password check
   if (hw.password !== password) {
     return res.status(401).json({ error: 'Wrong password' });
   }
 
-  // Correct password → hardware ON
+  // Correct password → mark connected
   hw.status = true;
-  // Data reset ya zero to indicate not connected pehle, ab app connect ho gaya
-  hw.data = 0; // ya latest initial value
+  hw.data = 0;
   await hw.save();
 
   res.json({ message: 'Hardware connected', status: hw.status, data: hw.data });
