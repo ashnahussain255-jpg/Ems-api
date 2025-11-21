@@ -1158,7 +1158,7 @@ const hardwareSchema = new mongoose.Schema({
   password: { type: String, required: true },     // Connect password
   data: { type: Number, default: 0 },             // Real-time data (0 by default)
 });
-  const Hardware = mongoose.model('Hardware', hardwareSchema);
+ 
 
   app.post('/api/hardware/connect', async (req, res) => {
   const { name, password } = req.body;
@@ -1222,15 +1222,6 @@ app.get('/api/hardware/:name/password', async (req, res) => {
 
 
 });
-
-
-
-
-
-
-
-
-
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
