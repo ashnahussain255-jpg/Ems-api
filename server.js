@@ -167,12 +167,14 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model("User", userSchema);
 // ===================== ADMIN SCHEMA =====================
 const adminSchema = new mongoose.Schema({
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  name: { type: String, default: "Admin" }
+  name: String,
+  email: String,
+  password: String,
+  role: String
 });
 
 const Admin = mongoose.model("Admin", adminSchema);
+
 // ===================== ADMIN REGISTER =====================
 app.post("/api/admin/register", async (req, res) => {
   try {
