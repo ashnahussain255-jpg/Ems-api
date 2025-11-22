@@ -1034,7 +1034,33 @@ const hardwareSchema = new mongoose.Schema({
   data: { type: Number, default: 0 },        // temporary storage for connected hardware
 });
 const Hardware = mongoose.model('Hardware', hardwareSchema);
+// GET all hardware
+app.get('/api/hardware/all', async (req, res) => {
+  try {
+    const hardwareList = await Hardware.find();
 
+    const devices = hardwareList.map(hw => hw.name);
+
+    res.json({ devices });
+  } catch (e) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+// GET hardware status
+app.get('/api/hardware/:name/status', async (req, res) => {
+  const name = req.params.name;
+
+  const hw = await Hardware.findOne({ name });
+
+  if (!hw) {
+    return res.json({ status: false, data: 0 });
+  }
+
+  res.json({
+    status: hw.status,
+    data: hw.data
+  });
+});
 // Connect hardware
 app.post('/api/hardware/connect', async (req, res) => {
   const { name, password } = req.body;
