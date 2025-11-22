@@ -1110,6 +1110,16 @@ app.get('/api/alerts/:userEmail', async (req, res) => {
   const alerts = await Alert.find({ userEmail: req.params.userEmail });
   res.json(alerts);
 });
+// Update hardware password
+app.post('/api/hardware/update-password', async (req, res) => {
+  const { name, password } = req.body;
+  const hw = await Hardware.findOne({ name });
+  if (!hw) return res.status(404).json({ status: false, message: 'Hardware not found' });
+
+  hw.password = password;
+  await hw.save();
+  res.json({ status: true, message: 'Password updated successfully' });
+});
 // ===================== CONNECT MONGO + START SERVER =====================
 mongoose
   .connect(process.env.MONGO_URI)
