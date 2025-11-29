@@ -28,41 +28,43 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    // 🎤 When mobile sends voice/text query
-    socket.on("askAI", async (data) => {
-        const userQuestion = data.question;
-        const email = data.email;
+ socket.on("askAI", async (data) => {
+    const userQuestion = data.question;
+    const email = data.email;
 
-        console.log("📩 Query From: " + email);
-        console.log("🧠 AI Asked → ", userQuestion);
+    console.log("📩 Query From: " + email);
+    console.log("🧠 AI Asked → ", userQuestion);
 
-        try {
-           const response = await axios.post(
-    "https://api.openai.com/v1/chat/completions",
-    {
-        model: "gpt-4o-mini",
-        messages: [
-            { role: "user", content: userQuestion },
-            { role: "system", content: "Reply only in plain text. Do not include HTML or Markdown." }
-        ]
-    },
-                {
-                    headers: {
-                        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-                        "Content-Type": "application/json"
-                    }
+    try {
+        const response = await axios.post(
+            "https://api.openai.com/v1/chat/completions",
+            {
+                model: "gpt-4o-mini",
+                messages: [
+                    { role: "system", content: "Reply only in plain text. Do not include HTML or Markdown." },
+                    { role: "user", content: userQuestion }
+                ]
+            },
+            {
+                headers: {
+                    "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                    "Content-Type": "application/json"
                 }
-            );
+            }
+        );
 
-          const sanitizeHtml = require("sanitize-html");
-const aiReplyClean = sanitizeHtml(aiReply, { allowedTags: [], allowedAttributes: {} });
-socket.emit("aiResponse", { reply: aiReplyClean });
+        // Correctly get AI's reply
+        const aiReply = response.data.choices[0].message.content;
 
-        } catch (error) {
-            console.log("🔴 AI ERROR:", error.message);
-            socket.emit("aiResponse", { reply: "AI failed to respond!" });
-        }
-    });
+        const sanitizeHtml = require("sanitize-html");
+        const aiReplyClean = sanitizeHtml(aiReply, { allowedTags: [], allowedAttributes: {} });
+
+        socket.emit("aiResponse", { reply: aiReplyClean });
+
+    } catch (error) {
+        console.log("🔴 AI ERROR:", error.message);
+        socket.emit("aiResponse", { reply: "AI failed to respond!" });
+    }
 });
 
 
