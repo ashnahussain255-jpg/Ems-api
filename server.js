@@ -66,7 +66,7 @@ io.on("connection", (socket) => {
         socket.emit("aiResponse", { reply: "AI failed to respond!" });
     }
 });
-
+});
 
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
