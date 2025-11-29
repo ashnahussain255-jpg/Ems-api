@@ -184,6 +184,8 @@ console.log("✅ BREVO_API_KEY loaded:", !!process.env.BREVO_API_KEY);
 console.log("✅ BREVO_USER loaded:", !!process.env.BREVO_USER);
 console.log("✅ MONGO_URI loaded:", !!process.env.MONGO_URI);
 console.log("✅ BASE_URL loaded:", !!process.env.BASE_URL);
+console.log("✅ OPENAI_API_KEY loaded:", !!process.env.OPENAI_API_KEY);
+
 
 // ===================== USER SCHEMA =====================
 const userSchema = new mongoose.Schema({
