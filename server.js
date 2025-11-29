@@ -63,6 +63,8 @@ io.on("connection", (socket) => {
 
     } catch (error) {
    console.log("🔴 AI ERROR:", error.response?.data || error.message);
+        console.log("📩 Query From: " + email);
+console.log("🧠 AI Asked → ", userQuestion);
         socket.emit("aiResponse", { reply: "AI failed to respond!" });
     }
 });
