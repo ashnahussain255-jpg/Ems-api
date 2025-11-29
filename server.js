@@ -37,12 +37,15 @@ io.on("connection", (socket) => {
         console.log("🧠 AI Asked → ", userQuestion);
 
         try {
-            const response = await axios.post(
-                "https://api.openai.com/v1/chat/completions",
-                {
-                    model: "gpt-4o-mini",
-                    messages: [{ role: "user", content: userQuestion }]
-                },
+           const response = await axios.post(
+    "https://api.openai.com/v1/chat/completions",
+    {
+        model: "gpt-4o-mini",
+        messages: [
+            { role: "user", content: userQuestion },
+            { role: "system", content: "Reply only in plain text. Do not include HTML or Markdown." }
+        ]
+    },
                 {
                     headers: {
                         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -51,10 +54,9 @@ io.on("connection", (socket) => {
                 }
             );
 
-            const aiReply = response.data.choices[0].message.content;
-
-            // Send response back to mobile app
-            socket.emit("aiResponse", { reply: aiReply });
+          const sanitizeHtml = require("sanitize-html");
+const aiReplyClean = sanitizeHtml(aiReply, { allowedTags: [], allowedAttributes: {} });
+socket.emit("aiResponse", { reply: aiReplyClean });
 
         } catch (error) {
             console.log("🔴 AI ERROR:", error.message);
