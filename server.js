@@ -25,6 +25,44 @@ app.use(cors({
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
+io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    // 🎤 When mobile sends voice/text query
+    socket.on("askAI", async (data) => {
+        const userQuestion = data.question;
+        const email = data.email;
+
+        console.log("📩 Query From: " + email);
+        console.log("🧠 AI Asked → ", userQuestion);
+
+        try {
+            const response = await axios.post(
+                "https://api.openai.com/v1/chat/completions",
+                {
+                    model: "gpt-4o-mini",
+                    messages: [{ role: "user", content: userQuestion }]
+                },
+                {
+                    headers: {
+                        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                        "Content-Type": "application/json"
+                    }
+                }
+            );
+
+            const aiReply = response.data.choices[0].message.content;
+
+            // Send response back to mobile app
+            socket.emit("aiResponse", { reply: aiReply });
+
+        } catch (error) {
+            console.log("🔴 AI ERROR:", error.message);
+            socket.emit("aiResponse", { reply: "AI failed to respond!" });
+        }
+    });
+});
+
 
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
