@@ -62,7 +62,7 @@ io.on("connection", (socket) => {
         socket.emit("aiResponse", { reply: aiReplyClean });
 
     } catch (error) {
-        console.log("🔴 AI ERROR:", error.message);
+   console.log("🔴 AI ERROR:", error.response?.data || error.message);
         socket.emit("aiResponse", { reply: "AI failed to respond!" });
     }
 });
