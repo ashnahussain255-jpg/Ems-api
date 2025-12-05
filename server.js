@@ -979,6 +979,7 @@ app.get('/api/onDevices', async (req, res) => {
 });
 // 1️⃣ Optimization screen latest units only
 // Update optimization latest units (Safe & real-time)
+// Update latest units and emit real-time data
 app.post('/api/device/:id/opt-latest', async (req, res) => {
   try {
     const deviceId = req.params.id;
@@ -997,10 +998,10 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     device.latestTimestamp = latestTimestamp;
     await device.save();
 
-    // 2️⃣ Fetch all devices of this user to calculate total units
+    // 2️⃣ Fetch all devices for this user
     const allDevices = await Device.find({ userEmail });
 
-    // Sum all latestUnits
+    // 3️⃣ Calculate total units and find device with highest usage
     let totalUnits = 0;
     let highestDevice = null;
     let maxUnits = 0;
@@ -1014,56 +1015,33 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
         highestDevice = d;
       }
     });
-async function updateDeviceUnits(deviceId, userEmail, units, timestamp) {
-    const device = await Device.findOne({ id: deviceId, userEmail });
-    if (!device) return;
 
-    const latestTimestamp = timestamp ? new Date(timestamp) : new Date();
-    device.latestUnits = parseFloat(units) || 0;
-    device.latestTimestamp = latestTimestamp;
-    await device.save();
-
-    // Calculate total units
-    const allDevices = await Device.find({ userEmail });
-    let totalUnits = 0;
-    let highestDevice = null;
-    let maxUnits = 0;
-
-    allDevices.forEach(d => {
-        const dUnits = parseFloat(d.latestUnits) || 0;
-        totalUnits += dUnits;
-        if (dUnits > maxUnits) {
-            maxUnits = dUnits;
-            highestDevice = d;
-        }
-    });
-
-    // Emit total units
+    // 4️⃣ Emit total units to optimization room
     const totalPayload = {
-        totalUnits,
-        mainDevice: highestDevice ? highestDevice.name : "Unknown",
-        timestamp: latestTimestamp
+      totalUnits,
+      mainDevice: highestDevice ? highestDevice.name : "Unknown",
+      timestamp: latestTimestamp
     };
     io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
-    console.log("✅ TOTAL EMITTED TO APP:", totalPayload.totalUnits);
+    console.log("✅ TOTAL EMITTED TO APP:", totalUnits);
 
-    // Emit alert if needed
+    // 5️⃣ Emit alert if total units cross threshold
     if (totalUnits >= 200 && highestDevice) {
-        const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
-        const tips = [
-            `Consider turning off ${highestDevice.name} to save energy`,
-            "Avoid using multiple high-power devices simultaneously",
-            "Unplug unused devices to save standby power"
-        ];
-        io.to(`user_${userEmail}_opt`).emit("alert", {
-            userEmail,
-            message: alertMessage,
-            tips
-        });
-    }
-}
+      const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
+      const tips = [
+        `Consider turning off ${highestDevice.name} to save energy`,
+        "Avoid using multiple high-power devices simultaneously",
+        "Unplug unused devices to save standby power"
+      ];
 
-    // 5️⃣ Respond with updated device info
+      io.to(`user_${userEmail}_opt`).emit("alert", {
+        userEmail,
+        message: alertMessage,
+        tips
+      });
+    }
+
+    // 6️⃣ Respond with updated device info
     const devicePayload = {
       deviceId: device.id,
       name: device.name,
@@ -1078,7 +1056,6 @@ async function updateDeviceUnits(deviceId, userEmail, units, timestamp) {
     if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
-
 const readingSchema = new mongoose.Schema({
     userId: { type: String, required: true },
     deviceId: { type: String, required: true },
