@@ -1014,7 +1014,31 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
         highestDevice = d;
       }
     });
+async function updateDeviceUnits(deviceId, userEmail, units, timestamp) {
+    const device = await Device.findOne({ id: deviceId, userEmail });
+    if (!device) return;
 
+    const latestTimestamp = timestamp ? new Date(timestamp) : new Date();
+    device.latestUnits = parseFloat(units) || 0;
+    device.latestTimestamp = latestTimestamp;
+    await device.save();
+
+    // Calculate total units
+    const allDevices = await Device.find({ userEmail });
+    let totalUnits = 0;
+    let highestDevice = null;
+    let maxUnits = 0;
+
+    allDevices.forEach(d => {
+        const dUnits = parseFloat(d.latestUnits) || 0;
+        totalUnits += dUnits;
+        if (dUnits > maxUnits) {
+            maxUnits = dUnits;
+            highestDevice = d;
+        }
+    });
+
+   
     // 3️⃣ Emit total units for optimization meter
     const totalPayload = {
       totalUnits,
