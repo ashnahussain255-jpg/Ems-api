@@ -996,62 +996,58 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     device.latestTimestamp = latestTimestamp;
     await device.save();
 
-    // 2️⃣ Fetch all devices for this user
-    const allDevices = await Device.find({ userEmail });
+    // 2️⃣ Emit updated totals to all app clients (real-time)
+    await emitUserTotalUnits(userEmail);
 
-    // 3️⃣ Calculate total units and find device with highest usage
-    let totalUnits = 0;
-    let highestDevice = null;
-
-    allDevices.forEach(d => {
-      const dUnits = parseFloat(d.latestUnits) || 0;
-      totalUnits += dUnits;
-
-      if (!highestDevice || dUnits > highestDevice.latestUnits) {
-        highestDevice = d;
+    // 3️⃣ Respond with updated device info
+    res.json({
+      success: true,
+      device: {
+        deviceId: device.id,
+        name: device.name,
+        units: device.latestUnits,
+        timestamp: latestTimestamp
       }
     });
-
-    // 4️⃣ Emit total units to optimization room
-    const totalPayload = {
-      totalUnits,
-      mainDevice: highestDevice ? highestDevice.name : "Unknown",
-      timestamp: latestTimestamp
-    };
-    io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
-    console.log("✅ TOTAL EMITTED TO APP:", totalUnits);
-
-    // 5️⃣ Emit alert if total units cross threshold
-    if (totalUnits >= 200 && highestDevice) {
-      const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
-      const tips = [
-        `Consider turning off ${highestDevice.name} to save energy`,
-        "Avoid using multiple high-power devices simultaneously",
-        "Unplug unused devices to save standby power"
-      ];
-
-      io.to(`user_${userEmail}_opt`).emit("alert", {
-        userEmail,
-        message: alertMessage,
-        tips
-      });
-    }
-
-    // 6️⃣ Respond with updated device info
-    const devicePayload = {
-      deviceId: device.id,
-      name: device.name,
-      units: device.latestUnits,
-      timestamp: latestTimestamp
-    };
-
-    res.json({ success: true, device: devicePayload, totalUnits });
 
   } catch (err) {
     console.error("❌ /opt-latest Error:", err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
+
+// ------------------- Function to emit total units and alerts -------------------
+async function emitUserTotalUnits(userEmail) {
+  const allDevices = await Device.find({ userEmail });
+  let totalUnits = 0;
+  let highestDevice = null;
+
+  allDevices.forEach(d => {
+    const dUnits = parseFloat(d.latestUnits) || 0;
+    totalUnits += dUnits;
+    if (!highestDevice || dUnits > highestDevice.latestUnits) highestDevice = d;
+  });
+
+  const payload = {
+    totalUnits,
+    mainDevice: highestDevice ? highestDevice.name : "Unknown",
+    timestamp: new Date()
+  };
+
+  io.to(`user_${userEmail}_opt`).emit("opt-latest-total", payload);
+  console.log(`✅ TOTAL EMITTED TO APP (${userEmail}):`, totalUnits);
+
+  // Emit alert if total exceeds threshold
+  if (totalUnits >= 200 && highestDevice) {
+    const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
+    const tips = [
+      `Consider turning off ${highestDevice.name} to save energy`,
+      "Avoid using multiple high-power devices simultaneously",
+      "Unplug unused devices to save standby power"
+    ];
+    io.to(`user_${userEmail}_opt`).emit("alert", { userEmail, message: alertMessage, tips });
+  }
+}
 
 // ------------------- Socket Join & Emit Latest Total -------------------
 io.on("connection", (socket) => {
@@ -1064,37 +1060,8 @@ io.on("connection", (socket) => {
     socket.join(`user_${userEmail}_opt`);
     console.log(`User joined optimization room: user_${userEmail}_opt`);
 
-    // Emit initial total units from DB when app joins
-    const allDevices = await Device.find({ userEmail });
-    let totalUnits = 0;
-    let highestDevice = null;
-
-    allDevices.forEach(d => {
-      const dUnits = parseFloat(d.latestUnits) || 0;
-      totalUnits += dUnits;
-      if (!highestDevice || dUnits > highestDevice.latestUnits) highestDevice = d;
-    });
-
-    socket.emit("opt-latest-total", {
-      totalUnits,
-      mainDevice: highestDevice ? highestDevice.name : "Unknown",
-      timestamp: new Date()
-    });
-
-    // Emit alert if total units >= 200
-    if (totalUnits >= 200 && highestDevice) {
-      const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
-      const tips = [
-        `Consider turning off ${highestDevice.name} to save energy`,
-        "Avoid using multiple high-power devices simultaneously",
-        "Unplug unused devices to save standby power"
-      ];
-      socket.emit("alert", {
-        userEmail,
-        message: alertMessage,
-        tips
-      });
-    }
+    // Emit totals immediately when app joins
+    await emitUserTotalUnits(userEmail);
   });
 });
 const readingSchema = new mongoose.Schema({
