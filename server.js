@@ -80,10 +80,13 @@ socket.on("joinDevices", ({ userEmail }) => {
     }
 });
     // Optimization screen room join
-    socket.on("join_opt", ({ userEmail }) => {
-        socket.join(`user_${userEmail}_opt`);
-        console.log(`User joined optimization room: ${userEmail}`);
-    });
+   socket.on("join_opt", (data) => {
+  const userEmail = data.userEmail;
+  if (userEmail) {
+    socket.join(`user_${userEmail}_opt`);
+    console.log(`User joined optimization room: user_${userEmail}_opt`);
+  }
+});
 
     socket.on("join", ({ userEmail }) => {
         if (userEmail) {
@@ -1015,6 +1018,7 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
     // 3️⃣ Emit total units for optimization meter
     const totalPayload = {
       totalUnits,
+        mainDevice: highestDevice ? highestDevice.name : "Unknown",
       timestamp: latestTimestamp
     };
     io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
