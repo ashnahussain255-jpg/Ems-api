@@ -1018,6 +1018,7 @@ app.post('/api/device/:id/opt-latest', async (req, res) => {
       timestamp: latestTimestamp
     };
     io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
+      console.log("✅ TOTAL EMITTED TO APP:", typeof totalPayload.totalUnits, totalPayload.totalUnits);
 
     // 4️⃣ Check if total units cross threshold (200) and emit alert with device info
    if (totalUnits >= 200 && highestDevice) {
