@@ -1038,32 +1038,29 @@ async function updateDeviceUnits(deviceId, userEmail, units, timestamp) {
         }
     });
 
-   
-    // 3️⃣ Emit total units for optimization meter
+    // Emit total units
     const totalPayload = {
-      totalUnits,
+        totalUnits,
         mainDevice: highestDevice ? highestDevice.name : "Unknown",
-      timestamp: latestTimestamp
+        timestamp: latestTimestamp
     };
     io.to(`user_${userEmail}_opt`).emit("opt-latest-total", totalPayload);
-      console.log("✅ TOTAL EMITTED TO APP:", typeof totalPayload.totalUnits, totalPayload.totalUnits);
+    console.log("✅ TOTAL EMITTED TO APP:", totalPayload.totalUnits);
 
-    // 4️⃣ Check if total units cross threshold (200) and emit alert with device info
-   if (totalUnits >= 200 && highestDevice) {
-    const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
-
-    const tips = [
-        `Consider turning off ${highestDevice.name} to save energy`,
-        "Avoid using multiple high-power devices simultaneously",
-        "Unplug unused devices to save standby power"
-    ];
-
-    // Emit alert + tips
-    io.to(`user_${userEmail}_opt`).emit("alert", {
-        userEmail,
-        message: alertMessage,
-        tips // send tips along with alert
-    });
+    // Emit alert if needed
+    if (totalUnits >= 200 && highestDevice) {
+        const alertMessage = `⚠️ High energy consumption: ${totalUnits} units (mainly due to ${highestDevice.name})`;
+        const tips = [
+            `Consider turning off ${highestDevice.name} to save energy`,
+            "Avoid using multiple high-power devices simultaneously",
+            "Unplug unused devices to save standby power"
+        ];
+        io.to(`user_${userEmail}_opt`).emit("alert", {
+            userEmail,
+            message: alertMessage,
+            tips
+        });
+    }
 }
 
     // 5️⃣ Respond with updated device info
