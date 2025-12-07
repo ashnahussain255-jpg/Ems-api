@@ -659,54 +659,99 @@ app.get("/api/history/:userId", async (req, res) => {
 
 // ===================== AGGREGATION FUNCTIONS =====================
 async function aggregateSecondsToMinutes(userId) {
-  const cutoff = new Date(Date.now() - 60 * 1000);
-  const seconds = await Second.find({ timestamp: { $lte: cutoff }, userId });
-  if (seconds.length > 0) {
-    const avgVoltage = seconds.reduce((a, b) => a + b.voltage, 0) / seconds.length;
-    const avgCurrent = seconds.reduce((a, b) => a + b.current, 0) / seconds.length;
-    await new Minute({ userId, voltage: avgVoltage, current: avgCurrent }).save();
-    await Second.deleteMany({ timestamp: { $lte: cutoff }, userId });
+  const seconds = await Second.find({ userId }).sort({ timestamp: 1 }).limit(60);
+
+  if (seconds.length === 60) {
+    const avgVoltage =
+      seconds.reduce((sum, s) => sum + s.voltage, 0) / 60;
+
+    const avgCurrent =
+      seconds.reduce((sum, s) => sum + s.current, 0) / 60;
+
+    await new Minute({
+      userId,
+      voltage: avgVoltage,
+      current: avgCurrent,
+    }).save();
+
+    // ✅ DELETE only those 60 records
+    const idsToDelete = seconds.map(s => s._id);
+    await Second.deleteMany({ _id: { $in: idsToDelete } });
+
+    console.log(`✅ 60 seconds aggregated → 1 minute saved for ${userId}`);
   }
 }
 
 async function aggregateMinutesToHours(userId) {
-  const cutoff = new Date(Date.now() - 60 * 60 * 1000);
-  const minutes = await Minute.find({ timestamp: { $lte: cutoff }, userId });
-  if (minutes.length > 0) {
-    const avgVoltage = minutes.reduce((a, b) => a + b.voltage, 0) / minutes.length;
-    const avgCurrent = minutes.reduce((a, b) => a + b.current, 0) / minutes.length;
-    await new Hour({ userId, voltage: avgVoltage, current: avgCurrent }).save();
-    await Minute.deleteMany({ timestamp: { $lte: cutoff }, userId });
+  const minutes = await Minute.find({ userId }).sort({ timestamp: 1 }).limit(60);
+
+  if (minutes.length === 60) {
+    const avgVoltage =
+      minutes.reduce((sum, m) => sum + m.voltage, 0) / 60;
+
+    const avgCurrent =
+      minutes.reduce((sum, m) => sum + m.current, 0) / 60;
+
+    await new Hour({
+      userId,
+      voltage: avgVoltage,
+      current: avgCurrent,
+    }).save();
+
+    const idsToDelete = minutes.map(m => m._id);
+    await Minute.deleteMany({ _id: { $in: idsToDelete } });
+
+    console.log(`✅ 60 minutes aggregated → 1 hour saved`);
   }
 }
 
 async function aggregateHoursToDays(userId) {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const hours = await Hour.find({ timestamp: { $lte: cutoff }, userId });
-  if (hours.length > 0) {
-    const avgVoltage = hours.reduce((a, b) => a + b.voltage, 0) / hours.length;
-    const avgCurrent = hours.reduce((a, b) => a + b.current, 0) / hours.length;
-    await new Day({ userId, voltage: avgVoltage, current: avgCurrent }).save();
-    await Hour.deleteMany({ timestamp: { $lte: cutoff }, userId });
+  const hours = await Hour.find({ userId }).sort({ timestamp: 1 }).limit(24);
+
+  if (hours.length === 24) {
+    const avgVoltage =
+      hours.reduce((sum, h) => sum + h.voltage, 0) / 24;
+
+    const avgCurrent =
+      hours.reduce((sum, h) => sum + h.current, 0) / 24;
+
+    await new Day({
+      userId,
+      voltage: avgVoltage,
+      current: avgCurrent,
+    }).save();
+
+    const idsToDelete = hours.map(h => h._id);
+    await Hour.deleteMany({ _id: { $in: idsToDelete } });
+
+    console.log(`✅ 24 hours aggregated → 1 day saved`);
   }
 }
 
 // ===================== MONTHLY AGGREGATION =====================
 async function aggregateDaysToMonths(userId) {
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth(), 0);
-  const days = await Day.find({ timestamp: { $lte: cutoff }, userId });
+  const days = await Day.find({ userId });
+
   if (days.length > 0) {
-    const avgVoltage = days.reduce((a, b) => a + b.voltage, 0) / days.length;
-    const avgCurrent = days.reduce((a, b) => a + b.current, 0) / days.length;
+    const avgVoltage =
+      days.reduce((sum, d) => sum + d.voltage, 0) / days.length;
 
-    await Month.updateOne(
-      { userId, month: cutoff.getMonth() + 1, year: cutoff.getFullYear() },
-      { avgVoltage, avgCurrent },
-      { upsert: true }
-    );
+    const avgCurrent =
+      days.reduce((sum, d) => sum + d.current, 0) / days.length;
 
-    await Day.deleteMany({ timestamp: { $lte: cutoff }, userId });
+    const now = new Date();
+
+    await new Month({
+      userId,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+      avgVoltage,
+      avgCurrent,
+    }).save();
+
+    await Day.deleteMany({ userId });
+
+    console.log(`✅ Monthly data saved`);
   }
 }
 
@@ -715,13 +760,17 @@ async function aggregateDaysToMonths(userId) {
 // ===================== SCHEDULE =====================
 setInterval(async () => {
   const users = await User.find();
+
   for (const user of users) {
-    await aggregateSecondsToMinutes(user._id.toString());
-    await aggregateMinutesToHours(user._id.toString());
-    await aggregateHoursToDays(user._id.toString());
-    await aggregateDaysToMonths(user._id.toString());
+    const userId = user._id.toString();
+
+    await aggregateSecondsToMinutes(userId);
+    await aggregateMinutesToHours(userId);
+    await aggregateHoursToDays(userId);
+    await aggregateDaysToMonths(userId);
   }
-}, 60 * 1000);
+
+}, 1000); // ✅ Every second check
 // ============================================================================
 // ✅ FIREBASE → MONGODB LIVE SYNC (ESP32 Data Listener)
 // ============================================================================
