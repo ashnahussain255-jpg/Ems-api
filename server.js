@@ -658,150 +658,132 @@ app.get("/api/history/:userId", async (req, res) => {
 
 
 // ===================== AGGREGATION FUNCTIONS =====================
-const aggregateSecondsToMinutes = async () => {
-  const seconds = await Second.find();
+// ===================== AGGREGATION FUNCTIONS =====================
 
+// Seconds → Minutes
+const aggregateSecondsToMinutes = async (userId) => {
+  const seconds = await Second.find({ userId }).sort({ timestamp: 1 });
   if (!seconds.length) return;
 
-  // Group by userId + minute timestamp
   const grouped = {};
   seconds.forEach(s => {
-    const userId = s.userId;
     const minuteTimestamp = new Date(s.timestamp);
-    minuteTimestamp.setSeconds(0, 0); // minute start
-
-    const key = userId + "_" + minuteTimestamp.getTime();
+    minuteTimestamp.setSeconds(0, 0); // round to minute start
+    const key = minuteTimestamp.getTime();
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(s);
   });
 
   for (const key in grouped) {
     const arr = grouped[key];
-    const userId = arr[0].userId;
-    const timestamp = new Date(arr[0].timestamp);
-    timestamp.setSeconds(0, 0); // minute start
-
+    const timestamp = new Date(parseInt(key));
     const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
     const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
 
     await new Minute({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
 
-    // ✅ Delete aggregated seconds
+    // Delete aggregated seconds
     await Second.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 
-const aggregateMinutesToHours = async () => {
-  const minutes = await Minute.find();
+// Minutes → Hours
+const aggregateMinutesToHours = async (userId) => {
+  const minutes = await Minute.find({ userId }).sort({ timestamp: 1 });
   if (!minutes.length) return;
 
   const grouped = {};
   minutes.forEach(m => {
-    const userId = m.userId;
     const hourTimestamp = new Date(m.timestamp);
-    hourTimestamp.setMinutes(0, 0, 0); // hour start
-
-    const key = userId + "_" + hourTimestamp.getTime();
+    hourTimestamp.setMinutes(0, 0, 0); // round to hour start
+    const key = hourTimestamp.getTime();
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(m);
   });
 
   for (const key in grouped) {
     const arr = grouped[key];
-    const userId = arr[0].userId;
-    const timestamp = new Date(arr[0].timestamp);
-    timestamp.setMinutes(0, 0, 0); // hour start
-
+    const timestamp = new Date(parseInt(key));
     const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
     const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
 
     await new Hour({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
 
-    // ✅ Delete aggregated minutes
+    // Delete aggregated minutes
     await Minute.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 
-const aggregateHoursToDays = async () => {
-  const hours = await Hour.find();
+// Hours → Days
+const aggregateHoursToDays = async (userId) => {
+  const hours = await Hour.find({ userId }).sort({ timestamp: 1 });
   if (!hours.length) return;
 
   const grouped = {};
   hours.forEach(h => {
-    const userId = h.userId;
     const dayTimestamp = new Date(h.timestamp);
-    dayTimestamp.setHours(0, 0, 0, 0); // day start
-
-    const key = userId + "_" + dayTimestamp.getTime();
+    dayTimestamp.setHours(0, 0, 0, 0); // round to day start
+    const key = dayTimestamp.getTime();
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(h);
   });
 
   for (const key in grouped) {
     const arr = grouped[key];
-    const userId = arr[0].userId;
-    const timestamp = new Date(arr[0].timestamp);
-    timestamp.setHours(0, 0, 0, 0); // day start
-
+    const timestamp = new Date(parseInt(key));
     const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
     const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
 
     await new Day({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
 
-    // ✅ Delete aggregated hours
+    // Delete aggregated hours
     await Hour.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
-// ===================== MONTHLY AGGREGATION =====================
-const aggregateDaysToMonths = async () => {
-  const days = await Day.find();
+
+// Days → Months
+const aggregateDaysToMonths = async (userId) => {
+  const days = await Day.find({ userId }).sort({ timestamp: 1 });
   if (!days.length) return;
 
   const grouped = {};
   days.forEach(d => {
-    const userId = d.userId;
-    const monthNumber = (d.timestamp.getMonth() + 1).toString(); // 1-12
-
-    const key = userId + "_" + monthNumber;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(d);
+    const monthKey = `${d.timestamp.getFullYear()}-${d.timestamp.getMonth() + 1}`;
+    if (!grouped[monthKey]) grouped[monthKey] = [];
+    grouped[monthKey].push(d);
   });
 
   for (const key in grouped) {
     const arr = grouped[key];
-    const userId = arr[0].userId;
     const month = (arr[0].timestamp.getMonth() + 1).toString();
-
+    const year = arr[0].timestamp.getFullYear();
     const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
     const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
 
     await new Month({
       month,
+      year,
       avgVoltage: avgVoltage.toFixed(2),
       avgCurrent: avgCurrent.toExponential(5),
       hardwareid: userId,
     }).save();
 
-    // ✅ Delete aggregated days
+    // Delete aggregated days
     await Day.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 
-
 // ===================== SCHEDULE =====================
 setInterval(async () => {
   const users = await User.find();
-
   for (const user of users) {
     const userId = user._id.toString();
-
     await aggregateSecondsToMinutes(userId);
     await aggregateMinutesToHours(userId);
     await aggregateHoursToDays(userId);
     await aggregateDaysToMonths(userId);
   }
-
-}, 1000); // ✅ Every second check
+}, 60 * 1000); // ✅ Every minute check (not every second)
 // ============================================================================
 // ✅ FIREBASE → MONGODB LIVE SYNC (ESP32 Data Listener)
 // ============================================================================
