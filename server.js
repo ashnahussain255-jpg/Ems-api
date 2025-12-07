@@ -659,120 +659,131 @@ app.get("/api/history/:userId", async (req, res) => {
 
 // ===================== AGGREGATION FUNCTIONS =====================
 const aggregateSecondsToMinutes = async () => {
-  const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+  const seconds = await Second.find();
 
-  const seconds = await Second.find({ timestamp: { $gte: oneMinuteAgo, $lt: now } });
   if (!seconds.length) return;
 
+  // Group by userId + minute timestamp
   const grouped = {};
-
   seconds.forEach(s => {
-    if (!grouped[s.userId]) grouped[s.userId] = [];
-    grouped[s.userId].push(s);
+    const userId = s.userId;
+    const minuteTimestamp = new Date(s.timestamp);
+    minuteTimestamp.setSeconds(0, 0); // minute start
+
+    const key = userId + "_" + minuteTimestamp.getTime();
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(s);
   });
 
-  for (const userId in grouped) {
-    const userSeconds = grouped[userId];
-    const avgVoltage = userSeconds.reduce((a, b) => a + b.voltage, 0) / userSeconds.length;
-    const avgCurrent = userSeconds.reduce((a, b) => a + b.current, 0) / userSeconds.length;
+  for (const key in grouped) {
+    const arr = grouped[key];
+    const userId = arr[0].userId;
+    const timestamp = new Date(arr[0].timestamp);
+    timestamp.setSeconds(0, 0); // minute start
 
-    await new Minute({
-      userId,
-      voltage: avgVoltage,
-      current: avgCurrent,
-      timestamp: now
-    }).save();
+    const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
+    const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
+
+    await new Minute({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
 
     // ✅ Delete aggregated seconds
-    await Second.deleteMany({ _id: { $in: userSeconds.map(s => s._id) } });
+    await Second.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 
 const aggregateMinutesToHours = async () => {
-  const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-  const minutes = await Minute.find({ timestamp: { $gte: oneHourAgo, $lt: now } });
+  const minutes = await Minute.find();
   if (!minutes.length) return;
 
   const grouped = {};
   minutes.forEach(m => {
-    if (!grouped[m.userId]) grouped[m.userId] = [];
-    grouped[m.userId].push(m);
+    const userId = m.userId;
+    const hourTimestamp = new Date(m.timestamp);
+    hourTimestamp.setMinutes(0, 0, 0); // hour start
+
+    const key = userId + "_" + hourTimestamp.getTime();
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(m);
   });
 
-  for (const userId in grouped) {
-    const userMinutes = grouped[userId];
-    const avgVoltage = userMinutes.reduce((a, b) => a + b.voltage, 0) / userMinutes.length;
-    const avgCurrent = userMinutes.reduce((a, b) => a + b.current, 0) / userMinutes.length;
+  for (const key in grouped) {
+    const arr = grouped[key];
+    const userId = arr[0].userId;
+    const timestamp = new Date(arr[0].timestamp);
+    timestamp.setMinutes(0, 0, 0); // hour start
 
-    await new Hour({
-      userId,
-      voltage: avgVoltage,
-      current: avgCurrent,
-      timestamp: now
-    }).save();
+    const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
+    const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
+
+    await new Hour({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
 
     // ✅ Delete aggregated minutes
-    await Minute.deleteMany({ _id: { $in: userMinutes.map(m => m._id) } });
+    await Minute.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 
 const aggregateHoursToDays = async () => {
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const hours = await Hour.find();
+  if (!hours.length) return;
 
-  const aggregated = await Hour.aggregate([
-    { $match: { timestamp: { $gte: oneDayAgo } } },
-    {
-      $group: {
-        _id: "$userId",
-        avgVoltage: { $avg: "$voltage" },
-        avgCurrent: { $avg: "$current" },
-        firstTimestamp: { $min: "$timestamp" },
-        lastTimestamp: { $max: "$timestamp" },
-      },
-    },
-  ]);
+  const grouped = {};
+  hours.forEach(h => {
+    const userId = h.userId;
+    const dayTimestamp = new Date(h.timestamp);
+    dayTimestamp.setHours(0, 0, 0, 0); // day start
 
-  for (const data of aggregated) {
-    await new Day({
-      userId: data._id,
-      voltage: data.avgVoltage,
-      current: data.avgCurrent,
-      timestamp: data.lastTimestamp,
-    }).save();
+    const key = userId + "_" + dayTimestamp.getTime();
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(h);
+  });
+
+  for (const key in grouped) {
+    const arr = grouped[key];
+    const userId = arr[0].userId;
+    const timestamp = new Date(arr[0].timestamp);
+    timestamp.setHours(0, 0, 0, 0); // day start
+
+    const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
+    const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
+
+    await new Day({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
+
+    // ✅ Delete aggregated hours
+    await Hour.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 // ===================== MONTHLY AGGREGATION =====================
 const aggregateDaysToMonths = async () => {
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const days = await Day.find({ timestamp: { $gte: firstOfMonth } });
+  const days = await Day.find();
   if (!days.length) return;
 
   const grouped = {};
   days.forEach(d => {
-    if (!grouped[d.userId]) grouped[d.userId] = [];
-    grouped[d.userId].push(d);
+    const userId = d.userId;
+    const monthNumber = (d.timestamp.getMonth() + 1).toString(); // 1-12
+
+    const key = userId + "_" + monthNumber;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(d);
   });
 
-  for (const userId in grouped) {
-    const userDays = grouped[userId];
+  for (const key in grouped) {
+    const arr = grouped[key];
+    const userId = arr[0].userId;
+    const month = (arr[0].timestamp.getMonth() + 1).toString();
 
-    const avgVoltage = userDays.reduce((a, b) => a + b.voltage, 0) / userDays.length;
-    const avgCurrent = userDays.reduce((a, b) => a + b.current, 0) / userDays.length;
+    const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
+    const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
 
     await new Month({
-      month: monthNumber,
+      month,
       avgVoltage: avgVoltage.toFixed(2),
       avgCurrent: avgCurrent.toExponential(5),
-      hardwareid: userId
+      hardwareid: userId,
     }).save();
 
     // ✅ Delete aggregated days
-    await Day.deleteMany({ _id: { $in: userDays.map(d => d._id) } });
+    await Day.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
 
