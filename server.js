@@ -774,16 +774,27 @@ const aggregateDaysToMonths = async (userId) => {
 };
 
 // ===================== SCHEDULE =====================
-setInterval(async () => {
-  const users = await User.find();
-  for (const user of users) {
-    const userId = user._id.toString();
-    await aggregateSecondsToMinutes(userId);
-    await aggregateMinutesToHours(userId);
-    await aggregateHoursToDays(userId);
-    await aggregateDaysToMonths(userId);
+ const cron = require("node-cron");
+
+// Cron schedule: every minute at 0 second
+cron.schedule("0 * * * * *", async () => {
+  try {
+    const users = await User.find();
+
+    await Promise.all(users.map(async (user) => {
+      const userId = user._id.toString();
+      await aggregateSecondsToMinutes(userId);
+      await aggregateMinutesToHours(userId);
+      await aggregateHoursToDays(userId);
+      await aggregateDaysToMonths(userId);
+    }));
+
+    console.log("✅ Aggregation completed for all users");
+  } catch (err) {
+    console.error("❌ Aggregation Error:", err.message);
   }
-}, 60 * 1000); // ✅ Every minute check (not every second)
+});
+// ✅ Every minute check (not every second)
 // ============================================================================
 // ✅ FIREBASE → MONGODB LIVE SYNC (ESP32 Data Listener)
 // ============================================================================
