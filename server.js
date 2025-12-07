@@ -661,6 +661,7 @@ app.get("/api/history/:userId", async (req, res) => {
 // ===================== AGGREGATION FUNCTIONS =====================
 
 // Seconds → Minutes
+// Seconds → Minutes
 const aggregateSecondsToMinutes = async (userId) => {
   const seconds = await Second.find({ userId }).sort({ timestamp: 1 });
   if (!seconds.length) return;
@@ -680,12 +681,15 @@ const aggregateSecondsToMinutes = async (userId) => {
     const avgVoltage = arr.reduce((a, b) => a + b.voltage, 0) / arr.length;
     const avgCurrent = arr.reduce((a, b) => a + b.current, 0) / arr.length;
 
+    console.log(`User: ${userId} | Minute: ${timestamp} | Count: ${arr.length} | AvgV: ${avgVoltage} | AvgC: ${avgCurrent}`);
+
     await new Minute({ userId, voltage: avgVoltage, current: avgCurrent, timestamp }).save();
 
     // Delete aggregated seconds
     await Second.deleteMany({ _id: { $in: arr.map(d => d._id) } });
   }
 };
+
 
 // Minutes → Hours
 const aggregateMinutesToHours = async (userId) => {
