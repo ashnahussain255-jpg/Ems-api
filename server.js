@@ -710,11 +710,11 @@ const aggregateMinutesToHours = async () => {
   }
 };
 
-const aggregateMinutesToHours = async () => {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+const aggregateHoursToDays = async () => {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const aggregated = await Minute.aggregate([
-    { $match: { timestamp: { $gte: oneHourAgo } } },
+  const aggregated = await Hour.aggregate([
+    { $match: { timestamp: { $gte: oneDayAgo } } },
     {
       $group: {
         _id: "$userId",
@@ -727,7 +727,7 @@ const aggregateMinutesToHours = async () => {
   ]);
 
   for (const data of aggregated) {
-    await new Hour({
+    await new Day({
       userId: data._id,
       voltage: data.avgVoltage,
       current: data.avgCurrent,
@@ -735,7 +735,6 @@ const aggregateMinutesToHours = async () => {
     }).save();
   }
 };
-
 // ===================== MONTHLY AGGREGATION =====================
 const aggregateDaysToMonths = async () => {
   const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
